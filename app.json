@@ -7,9 +7,8 @@
     "orientation": "portrait",
 
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
-
-    "icon": "./assets/images/icon.png",
+    "jsEngine": "hermes",
+    "newArchEnabled": true,
 
     "assetBundlePatterns": ["**/*"],
 
