@@ -5,37 +5,23 @@
     "scheme": "dietbitepro",
     "version": "1.0.0",
     "orientation": "portrait",
+
     "userInterfaceStyle": "dark",
-    "jsEngine": "hermes",
     "newArchEnabled": false,
+
     "icon": "./assets/images/icon.png",
-    "splash": {
-      "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#000000"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+
+    "assetBundlePatterns": ["**/*"],
+
     "android": {
-      "package": "com.grantedsolutions.dietbitepro",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
-      }
+      "package": "com.grantedsolutions.dietbitepro"
     },
+
     "ios": {
       "bundleIdentifier": "com.grantedsolutions.dietbitepro",
       "supportsTablet": true
     },
-    "plugins": [
-      "expo-router"
-    ],
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "fa700e40-799f-4a27-80ac-5007e0cba938"
-      }
-    }
+
+    "plugins": ["expo-router"]
   }
 }
