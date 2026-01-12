@@ -1,98 +1,269 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { sendMessage } from "../../lib/chatApi";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+type Msg = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+};
 
-export default function HomeScreen() {
+const INPUT_HEIGHT = 78;
+
+// Animated gradient wrapper
+const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
+
+export default function ChatScreen() {
+  const [messages, setMessages] = useState<Msg[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      text: "Hi! Ask me anything about nutrition. What can I help with today?",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const listRef = useRef<FlatList<Msg>>(null);
+
+  // 🌌 Subtle gradient animation
+  const gradientAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(gradientAnim, {
+          toValue: 1,
+          duration: 18000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(gradientAnim, {
+          toValue: 0,
+          duration: 18000,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const start = gradientAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.3],
+  });
+
+  const end = gradientAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0.7],
+  });
+
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToEnd({ animated: true });
+    });
+  };
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+
+    setMessages((prev) => [
+      ...prev,
+      { id: String(Date.now()), role: "user", text },
+    ]);
+    setInput("");
+    setLoading(true);
+    scrollToBottom();
+
+    const reply = await sendMessage(text);
+
+    setMessages((prev) => [
+      ...prev,
+      { id: `${Date.now()}-ai`, role: "assistant", text: reply },
+    ]);
+    setLoading(false);
+    scrollToBottom();
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      {/* 🌌 Animated gradient background */}
+      <AnimatedGradient
+        colors={["#020403", "#0a1712", "#020403"]}
+        start={{ x: start, y: 0 }}
+        end={{ x: end, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {/* 🍏 DietBite logo watermark */}
+      <Image
+        source={require("../../assets/images/dietbitelogo.png")}
+        style={styles.watermark}
+        resizeMode="contain"
+      />
+
+      {/* Main content */}
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.chat}
+          renderItem={({ item }) => (
+            <View
+              style={[
+                styles.bubble,
+                item.role === "user" ? styles.userBubble : styles.aiBubble,
+              ]}
+            >
+              <Text style={styles.bubbleText}>{item.text}</Text>
+            </View>
+          )}
+          keyboardShouldPersistTaps="handled"
+        />
+
+        {loading && <Text style={styles.thinking}>Thinking…</Text>}
+
+        {/* Input Bar */}
+        <View style={styles.inputBar}>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder="Ask DietBite..."
+            placeholderTextColor="rgba(233,255,242,0.4)"
+            style={styles.input}
+            multiline
+            editable={!loading}
+            returnKeyType="send"
+            onSubmitEditing={handleSend}
+          />
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              pressed && { opacity: 0.85 },
+              loading && { opacity: 0.6 },
+            ]}
+            onPress={handleSend}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>Ask</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  safe: { flex: 1 },
+  container: { flex: 1 },
+
+  // 🍏 Watermark styling (subtle, non-distracting)
+  watermark: {
+    position: "absolute",
+    width: "72%",
+    height: "72%",
+    alignSelf: "center",
+    top: "18%",
+    opacity: 0.08, // 🔧 adjust 0.05–0.1 if desired
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+
+  chat: {
+    padding: 16,
+    paddingBottom: INPUT_HEIGHT + 30,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+
+  bubble: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    marginBottom: 10,
+    maxWidth: "85%",
+    borderWidth: 1,
+  },
+
+  userBubble: {
+    alignSelf: "flex-end",
+    backgroundColor: "rgba(0, 255, 170, 0.18)",
+    borderColor: "rgba(0, 255, 170, 0.3)",
+  },
+
+  aiBubble: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(12, 18, 16, 0.78)",
+    borderColor: "rgba(233,255,242,0.12)",
+  },
+
+  bubbleText: {
+    color: "rgba(233,255,242,0.95)",
+    fontSize: 16,
+    lineHeight: 22,
+  },
+
+  thinking: {
+    position: "absolute",
+    bottom: INPUT_HEIGHT + 10,
+    left: 16,
+    right: 16,
+    color: "rgba(233,255,242,0.6)",
+  },
+
+  inputBar: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 18,
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+    borderRadius: 20,
+    backgroundColor: "rgba(8, 14, 12, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "flex-end",
+  },
+
+  input: {
+    flex: 1,
+    minHeight: 46,
+    maxHeight: 120,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: "rgba(233,255,242,0.95)",
+    backgroundColor: "rgba(10, 16, 14, 0.9)",
+    borderWidth: 1,
+    borderColor: "rgba(233,255,242,0.12)",
+  },
+
+  button: {
+    height: 46,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    backgroundColor: "rgba(0, 255, 170, 0.9)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  buttonText: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#00150D",
   },
 });
