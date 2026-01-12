@@ -1,8 +1,9 @@
 /**
  * DietBite Pro Backend
  * Express + OpenAI
- * - Listens on 0.0.0.0 so phone can reach it on LAN
- * - Always returns JSON { reply: "..." } even on errors
+ * - Runs on Render or locally
+ * - Always returns JSON
+ * - Includes /health route for Render + app checks
  */
 
 require("dotenv").config();
@@ -12,22 +13,42 @@ const cors = require("cors");
 const OpenAI = require("openai");
 
 const app = express();
+
+// Render injects PORT automatically
 const PORT = Number(process.env.PORT || 3000);
 
-// Allow requests from phone + web
+// Middleware
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-// Health check
+/**
+ * ROOT ROUTE (browser-friendly)
+ */
 app.get("/", (req, res) => {
   res.send("✅ DietBite Pro backend is running");
 });
 
-// Create client only if key exists
+/**
+ * HEALTH CHECK (IMPORTANT for Render + debugging)
+ */
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: "DietBite Pro Backend",
+    status: "healthy",
+  });
+});
+
+/**
+ * OpenAI client (only if key exists)
+ */
 const client = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
+/**
+ * CHAT ENDPOINT
+ */
 app.post("/api/chat", async (req, res) => {
   try {
     const message = (req.body?.message || "").trim();
@@ -36,11 +57,11 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ reply: "Please type a question." });
     }
 
-    // If no key, return a fast fallback response (prevents hanging)
+    // Fast fallback if key missing (prevents hanging)
     if (!client) {
       return res.status(200).json({
         reply:
-          "✅ Backend is running, but no OPENAI_API_KEY is set. Add it to backend/.env and restart the server.",
+          "⚠️ Backend is running but OPENAI_API_KEY is missing. Add it in Render Environment settings.",
       });
     }
 
@@ -65,24 +86,26 @@ app.post("/api/chat", async (req, res) => {
 
     return res.status(200).json({ reply });
   } catch (err) {
-    console.error("❌ OpenAI/Server error:", err?.status, err?.message);
+    console.error("❌ Backend error:", err?.status, err?.message);
 
-    // Always return JSON so the app doesn't crash/hang
     if (err?.status === 429) {
       return res.status(200).json({
         reply:
-          "⚠️ The AI service is out of quota right now (429). Add billing/credits in OpenAI, then try again.",
+          "⚠️ AI quota exceeded. Please check billing or try again later.",
       });
     }
 
     return res.status(200).json({
-      reply: "⚠️ Server error. Check backend console logs.",
+      reply: "⚠️ Server error. Please try again shortly.",
     });
   }
 });
 
-// IMPORTANT: 0.0.0.0 lets your phone reach it on your Wi-Fi network
+/**
+ * START SERVER
+ * IMPORTANT: 0.0.0.0 allows Render + phones to reach it
+ */
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Backend running on http://0.0.0.0:${PORT}`);
-  console.log(`✅ Using model: ${process.env.OPENAI_MODEL || "gpt-4o-mini"}`);
+  console.log(`✅ Model: ${process.env.OPENAI_MODEL || "gpt-4o-mini"}`);
 });
