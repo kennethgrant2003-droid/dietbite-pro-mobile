@@ -1,4 +1,10 @@
-const PROD_URL = "https://dietbite-pro-backend-new.onrender.com";
-const DEV_URL = "http://192.168.1.199:3000";
+// config/api.ts
+// DietBite Pro – Production API configuration
 
-export const API_BASE_URL = __DEV__ ? DEV_URL : PROD_URL;
+/**
+ * Production backend (Render)
+ * This is used for ALL production / EAS builds.
+ * No local IPs. No laptop dependency.
+ */
+export const API_BASE_URL =
+  "https://dietbite-pro-backend-new.onrender.com";
