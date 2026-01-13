@@ -1,7 +1,10 @@
 /**
- * DietBite Pro Backend
+ * DietBite Pro Backend (Render-ready)
  * Express + OpenAI
- * Render-safe, mobile-safe
+ * - Works on Render (uses process.env.PORT)
+ * - GET / returns JSON status
+ * - GET /api/chat returns browser-safe JSON (prevents "Method Not Allowed")
+ * - POST /api/chat accepts { message } and returns { reply }
  */
 
 require("dotenv").config();
@@ -11,16 +14,11 @@ const cors = require("cors");
 const OpenAI = require("openai");
 
 const app = express();
-const PORT = Number(process.env.PORT || 3000);
 
-// Middleware
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-/**
- * ROOT HEALTH CHECK
- * https://your-backend.onrender.com/
- */
+// ✅ Always-OK health check (browser-friendly)
 app.get("/", (req, res) => {
   res.status(200).json({
     status: "ok",
@@ -29,11 +27,7 @@ app.get("/", (req, res) => {
   });
 });
 
-/**
- * ✅ OPTION A — GET TEST ROUTE
- * Allows browser/phone testing
- * https://your-backend.onrender.com/api/chat
- */
+// ✅ Browser-friendly route so visiting /api/chat doesn't show Method Not Allowed
 app.get("/api/chat", (req, res) => {
   res.status(200).json({
     ok: true,
@@ -41,29 +35,23 @@ app.get("/api/chat", (req, res) => {
   });
 });
 
-// Create OpenAI client only if key exists
+// OpenAI client (optional if key missing)
 const client = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-/**
- * MAIN CHAT ENDPOINT (POST ONLY)
- */
 app.post("/api/chat", async (req, res) => {
   try {
-    const message = (req.body?.message || "").trim();
+    const message = String(req.body?.message || "").trim();
 
     if (!message) {
-      return res.status(200).json({
-        reply: "⚠️ Please type a question.",
-      });
+      return res.status(400).json({ reply: "Please type a question." });
     }
 
-    // Fast fallback if key missing (prevents hangs)
     if (!client) {
       return res.status(200).json({
         reply:
-          "⚠️ Backend is running, but OPENAI_API_KEY is not set on the server.",
+          "✅ Backend is live, but OPENAI_API_KEY is missing on the server. Add it in Render → Environment.",
       });
     }
 
@@ -88,22 +76,23 @@ app.post("/api/chat", async (req, res) => {
 
     return res.status(200).json({ reply });
   } catch (err) {
-    console.error("❌ Server error:", err?.status, err?.message);
+    console.error("❌ Error:", err?.status, err?.message);
 
     if (err?.status === 429) {
       return res.status(200).json({
         reply:
-          "⚠️ The AI service is temporarily unavailable due to quota limits.",
+          "⚠️ The AI service is out of quota (429). Add billing/credits, then try again.",
       });
     }
 
     return res.status(200).json({
-      reply: "⚠️ Server error. Please try again shortly.",
+      reply: "⚠️ Server error. Check Render logs.",
     });
   }
 });
 
-// IMPORTANT for Render + phones
+// ✅ Render uses PORT. Bind to 0.0.0.0
+const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ Backend running on port ${PORT}`);
   console.log(`✅ Model: ${process.env.OPENAI_MODEL || "gpt-4o-mini"}`);
