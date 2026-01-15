@@ -1,16 +1,14 @@
 {
   "name": "dietbite-pro-backend",
   "version": "1.0.0",
+  "type": "module",
   "main": "server.js",
-  "type": "commonjs",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "expo-updates": "~29.0.16",
-    "express": "^4.19.2",
-    "openai": "^4.0.0"
+    "express": "^4.19.2"
   }
 }
