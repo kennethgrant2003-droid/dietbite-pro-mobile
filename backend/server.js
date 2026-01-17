@@ -1,159 +1,84 @@
-// backend/server.js
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-
-dotenv.config();
+import OpenAI from "openai";
 
 const app = express();
-
-// ----- config -----
-const PORT = process.env.PORT || 3000;
-
-// IMPORTANT: set this in Render env vars
-// OPENAI_API_KEY=...
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-// Optional: lock down allowed origins if you want
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
+app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-// ----- helpers -----
-function brandingGuard(text) {
-  if (!text || typeof text !== "string") return text;
-
-  // If the assistant says anything like created by OpenAI/nutritionists/etc, replace with your brand
-  const lower = text.toLowerCase();
-
-  const mentionsCreatedBy =
-    lower.includes("created by") ||
-    lower.includes("built by") ||
-    lower.includes("developed by") ||
-    lower.includes("made by");
-
-  if (mentionsCreatedBy) {
-    // If it doesn't mention you, force it
-    const mentionsKenneth =
-      lower.includes("kenneth") ||
-      lower.includes("granted solutions") ||
-      lower.includes("granted solutions, llc");
-
-    if (!mentionsKenneth) {
-      return "DietBite Pro was created by Kenneth Grant of Granted Solutions, LLC.";
-    }
-  }
-
-  // Also catch “nutritionists” claim specifically
-  if (lower.includes("created by nutritionists") || lower.includes("built by nutritionists")) {
-    return "DietBite Pro was created by Kenneth Grant of Granted Solutions, LLC.";
-  }
-
-  return text;
-}
-
-function mustHaveApiKey() {
-  if (!OPENAI_API_KEY) {
-    return {
-      ok: false,
-      error:
-        "OPENAI_API_KEY is missing on the server. Add it in Render (Environment) and redeploy/restart.",
-    };
-  }
-  return { ok: true };
-}
-
-// ----- routes -----
-app.get("/", (req, res) => {
-  res.json({ message: "API working" });
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
 
-// Health check for chat route (GET)
-app.get("/api/chat", (req, res) => {
-  res.json({
-    message: 'Chat endpoint is alive. Use POST /api/chat with { "message": "..." }',
-  });
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
 });
 
-// Main chat endpoint (POST)
-app.post("/api/chat", async (req, res) => {
+function isCreatorQuestion(text) {
+  const t = String(text || "").trim().toLowerCase();
+  return (
+    t.includes("who created you") ||
+    t.includes("who made you") ||
+    t.includes("who built you") ||
+    t.includes("who developed you") ||
+    t.includes("creator")
+  );
+}
+
+app.post("/chat", async (req, res) => {
   try {
-    const keyCheck = mustHaveApiKey();
-    if (!keyCheck.ok) return res.status(500).json({ error: keyCheck.error });
-
-    const message = (req.body?.message || "").toString().trim();
+    const message = String(req.body?.message || "").trim();
+    const history = Array.isArray(req.body?.history) ? req.body.history : [];
 
     if (!message) {
-      return res.status(400).json({ error: "Missing 'message' in request body." });
+      return res.json({ reply: "Please ask a nutrition question." });
     }
 
-    // SYSTEM prompt = hard lock your identity/branding
-    const systemPrompt = `
-You are DietBite Pro Chat, a nutrition assistant inside the DietBite Pro app.
-
-CRITICAL BRANDING RULES (must follow exactly):
-- The app and assistant were created by: Kenneth Grant of Granted Solutions, LLC.
-- If the user asks "Who created you?" or anything about who built/created/made/developed this app/assistant,
-  you MUST answer: "DietBite Pro was created by Kenneth Grant of Granted Solutions, LLC."
-- Do NOT claim you were created by nutritionists, OpenAI, a team, or anyone else.
-- If asked about underlying AI technology, you may say it is powered by OpenAI, but ownership/creation is Kenneth Grant of Granted Solutions, LLC.
-
-Behavior:
-- Be helpful, concise, and friendly.
-- Provide safe nutrition information; suggest consulting a clinician for medical conditions.
-`.trim();
-
-    // Call OpenAI Responses API
-    // NOTE: This uses fetch available in Node 18+ (Render uses Node 18/20 typically)
-    const openaiRes = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        input: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message },
-        ],
-      }),
-    });
-
-    if (!openaiRes.ok) {
-      const errText = await openaiRes.text();
-      return res.status(500).json({
-        error: "OpenAI request failed",
-        details: errText,
+    // Creator answer ONLY if asked
+    if (isCreatorQuestion(message)) {
+      return res.json({
+        reply: "I was created by Kenneth Grant of Granted Solutions, LLC."
       });
     }
 
-    const data = await openaiRes.json();
+    // Build a short conversation context (avoid repetition)
+    const chatHistory = history
+      .slice(-10)
+      .map(m => {
+        const role = m.role === "assistant" ? "assistant" : "user";
+        const content = String(m.content || "").slice(0, 1000);
+        return { role, content };
+      });
 
-    // Responses API can return text in different places; this is a safe extraction
-    let reply =
-      data?.output_text ||
-      data?.output?.[0]?.content?.[0]?.text ||
-      data?.output?.[0]?.content?.[0]?.value ||
-      "";
+    const systemPrompt =
+      "You are DietBite, a practical nutrition assistant. " +
+      "Always answer the user's diet question directly with specific, actionable guidance. " +
+      "Do not respond with generic filler like 'tell me more' unless you have already provided a useful answer. " +
+      "Give concrete food examples, swaps, and 1 day meal ideas when relevant. " +
+      "If details are missing, assume a typical adult and still answer, then ask at most 2 follow-up questions at the end. " +
+      "Keep it concise: 6 to 12 bullets max. " +
+      "If medical (kidney disease, diabetes, pregnancy, meds), add one short safety note: confirm with clinician/dietitian for personal targets.";
 
-    reply = brandingGuard(reply);
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      input: [
+        { role: "system", content: systemPrompt },
+        ...chatHistory,
+        { role: "user", content: message }
+      ]
+    });
 
-    return res.json({ reply });
+    const reply = (response?.output_text || "").trim();
+    return res.json({
+      reply: reply || "I could not generate a response. Please try again."
+    });
   } catch (err) {
     return res.status(500).json({
-      error: "Server error",
-      details: err?.message || String(err),
+      reply: "Server error. Please try again."
     });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+app.listen(3001, "0.0.0.0", () => {
+  console.log("Backend running on http://0.0.0.0:3001");
 });

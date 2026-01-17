@@ -1,14 +1,14 @@
-import { Stack } from "expo-router";
+import { Tabs } from "expo-router";
 
-export default function RootLayout() {
+export default function TabLayout() {
   return (
-    <Stack
+    <Tabs
       screenOptions={{
         headerShown: false,
-        contentStyle: {
-          backgroundColor: "#000", // ✅ FORCE BLACK EVERYWHERE
-        },
+        tabBarStyle: { display: "none" } // hides bottom tabs completely
       }}
-    />
+    >
+      <Tabs.Screen name="chat" />
+    </Tabs>
   );
 }
