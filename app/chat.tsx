@@ -4,49 +4,58 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { sendMessage } from "../lib/chatApi";
 
-type ChatMessage = {
-  role: "user" | "assistant";
-  text: string;
-};
+const API_URL = "https://dietbite-pro-backend-new.onrender.com/api/chat";
 
 export default function ChatScreen() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<
+    { role: "user" | "assistant"; text: string }[]
+  >([
     {
       role: "assistant",
       text: "Hi! Ask me anything about nutrition.",
     },
   ]);
-  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSend() {
+  const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
-    const userMessage: ChatMessage = { role: "user", text: input };
-    setMessages((prev) => [...prev, userMessage]);
+    const userMessage = input.trim();
     setInput("");
+
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: userMessage },
+    ]);
+
     setLoading(true);
 
     try {
-      const data = await sendMessage(userMessage.text);
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: userMessage }),
+      });
 
-      const replyText =
-        typeof data?.reply === "string"
-          ? data.reply
-          : "Sorry, I couldn't generate a response.";
+      const data = await res.json();
 
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: replyText },
+        {
+          role: "assistant",
+          text: data.reply ?? "No reply received.",
+        },
       ]);
-    } catch (err: any) {
+    } catch (err) {
       setMessages((prev) => [
         ...prev,
         {
@@ -57,32 +66,25 @@ export default function ChatScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.header}>DietBite Pro Chat</Text>
+      <Text style={styles.title}>DietBite Pro Chat</Text>
 
-      <ScrollView
-        style={styles.chat}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      >
-        {messages.map((msg, index) => (
+      <ScrollView style={styles.chat} contentContainerStyle={{ paddingBottom: 20 }}>
+        {messages.map((msg, i) => (
           <Text
-            key={index}
+            key={i}
             style={[
               styles.message,
-              msg.role === "assistant"
-                ? styles.assistant
-                : styles.user,
+              msg.role === "user" ? styles.user : styles.assistant,
             ]}
           >
-            <Text style={styles.role}>
-              {msg.role === "assistant" ? "DietBite Pro: " : "You: "}
-            </Text>
+            {msg.role === "user" ? "You: " : "DietBite Pro: "}
             {msg.text}
           </Text>
         ))}
@@ -93,13 +95,12 @@ export default function ChatScreen() {
           value={input}
           onChangeText={setInput}
           placeholder="Ask DietBite Pro..."
-          placeholderTextColor="#777"
+          placeholderTextColor="#666"
           style={styles.input}
-          editable={!loading}
         />
         <TouchableOpacity
           style={styles.sendButton}
-          onPress={handleSend}
+          onPress={sendMessage}
           disabled={loading}
         >
           <Text style={styles.sendText}>
@@ -115,38 +116,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#000",
-    paddingTop: 50,
+    padding: 16,
   },
-  header: {
+  title: {
     color: "#63ff5a",
-    fontSize: 26,
-    fontWeight: "900",
-    paddingHorizontal: 16,
+    fontSize: 22,
+    fontWeight: "bold",
     marginBottom: 10,
   },
   chat: {
     flex: 1,
-    paddingHorizontal: 16,
   },
   message: {
     fontSize: 16,
-    marginBottom: 10,
+    marginBottom: 8,
     lineHeight: 22,
   },
-  role: {
-    fontWeight: "bold",
+  user: {
+    color: "#63ff5a",
   },
   assistant: {
-    color: "#ffffff",
-  },
-  user: {
-    color: "#b0ffb0",
+    color: "#fff",
   },
   inputRow: {
     flexDirection: "row",
-    padding: 12,
-    borderTopWidth: 1,
-    borderColor: "#222",
+    alignItems: "center",
+    gap: 8,
   },
   input: {
     flex: 1,
@@ -157,7 +152,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.1)",
   },
   sendButton: {
-    marginLeft: 10,
     height: 48,
     paddingHorizontal: 18,
     borderRadius: 14,
