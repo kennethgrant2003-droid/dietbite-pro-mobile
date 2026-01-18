@@ -1,65 +1,64 @@
 import express from "express";
+import crypto from "crypto";
 import cors from "cors";
-import OpenAI from "openai";
+
+console.log("✅ LOADED backend/server.mjs");
 
 const app = express();
-app.use(cors());
+
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(express.json({ limit: "1mb" }));
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+app.use((req, res, next) => {
+  req.rid = crypto.randomUUID();
+  res.setHeader("X-Request-Id", req.rid);
+  next();
+});
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/", (req, res) => res.json({ ok: true }));
 
-function isCreatorQuestion(text) {
-  const t = String(text || "").trim().toLowerCase();
-  return (
-    t.includes("who created you") ||
-    t.includes("who made you") ||
-    t.includes("who built you") ||
-    t.includes("who developed you") ||
-    t.includes("creator")
-  );
-}
+app.get("/version", (req, res) => {
+  res.json({
+    ok: true,
+    file: "backend/server.mjs",
+    node: process.version,
+    time: new Date().toISOString(),
+  });
+});
 
-app.post("/chat", async (req, res) => {
+app.post("/chat", (req, res) => {
+  const rid = req.rid;
   try {
-    const message = String(req.body && req.body.message ? req.body.message : "").trim();
-
-    if (!message) {
-      return res.json({ reply: "Ask me a nutrition question (example: low sodium meals, diabetes foods, renal diet)." });
+    const { message } = req.body ?? {};
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({
+        reply: "Missing or invalid 'message' (must be a string).",
+        rid,
+      });
     }
 
-    // Creator name only if asked
-    if (isCreatorQuestion(message)) {
-      return res.json({ reply: "I was created by Kenneth Grant of Granted Solutions, LLC." });
-    }
-
-    // Strong system prompt to avoid broad replies
-    const systemPrompt =
-      "You are DietBite, a practical nutrition assistant. " +
-      "Always answer the user's question directly with specific, actionable guidance. " +
-      "Do NOT respond with generic filler like 'that sounds like a nutrition question' or only ask for more details. " +
-      "Give examples of foods, swaps, simple meal ideas, and a short checklist. " +
-      "If details are missing, make reasonable assumptions and still answer, then ask at most 2 quick follow-up questions at the end. " +
-      "Keep responses 6-12 bullets max, concise but useful. " +
-      "If the topic involves a medical condition (diabetes, kidney disease, heart failure, pregnancy, eating disorders, meds), include one short safety note: 'For personalized targets, confirm with your clinician/dietitian.'";
-
-    const response = await client.responses.create({
-      model: "gpt-4.1-mini",
-      input: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: message }
-      ]
+    return res.json({
+      reply:
+        "A low-sodium diet limits sodium (salt) intake to help manage blood pressure and fluid balance.",
+      rid,
     });
-
-    const reply = (response && response.output_text ? String(response.output_text) : "").trim();
-    return res.json({ reply: reply || "I could not generate a response. Please try again." });
-  } catch (_err) {
-    return res.status(500).json({ reply: "Server error. Please try again." });
+  } catch (err) {
+    console.error(`[chat] ERROR rid=${rid}`, err);
+    return res.status(500).json({ reply: "Server error. Please try again.", rid });
   }
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("DietBite backend running on http://0.0.0.0:" + PORT);
+// IMPORTANT: bind to all interfaces so Windows is happy
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = "0.0.0.0";
+
+app.listen(PORT, HOST, () => {
+  console.log(`✅ LISTENING on http://${HOST}:${PORT}`);
 });
