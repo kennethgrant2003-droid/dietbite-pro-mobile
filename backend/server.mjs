@@ -4,100 +4,129 @@ import crypto from "crypto";
 import OpenAI from "openai";
 
 const app = express();
+
+/**
+ * IMPORTANT for Render:
+ * - Must listen on process.env.PORT
+ * - Must bind to 0.0.0.0
+ * - Must have a fast health route (GET /)
+ */
+
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-const PORT = process.env.PORT || 3000;
+// Health check (Render needs this to stop timing out)
+app.get("/", (req, res) => {
+  res.status(200).send("OK");
+});
 
-const client = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+// Helper: normalize request into OpenAI chat messages
+function normalizeMessages(body) {
+  // NEW format: { messages: [{role, content}, ...] }
+  if (Array.isArray(body?.messages)) {
+    const cleaned = body.messages
+      .filter((m) => m && typeof m.role === "string" && typeof m.content === "string")
+      .map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      }));
 
-const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+    if (cleaned.length > 0) return cleaned;
+  }
 
-const SYSTEM_PROMPT = `
-You are DietBite Pro, a helpful nutrition assistant.
+  // OLD format: { message: "..." }
+  if (typeof body?.message === "string" && body.message.trim().length > 0) {
+    return [{ role: "user", content: body.message.trim() }];
+  }
 
-- Provide practical, actionable nutrition guidance.
-- Be concise and clear.
-- Ask at most one follow-up question when helpful.
-- Do not diagnose. Encourage consulting a licensed clinician for medical issues.
+  return null;
+}
 
-Hard rule:
-If the user asks who created the app / who created you / who made DietBite,
-answer exactly: "Kenneth Grant of Granted Solutions, LLC."
-`.trim();
-
-function isCreatorQuestion(text = "") {
-  const t = String(text).toLowerCase();
-  const hasWho =
+// Hard rules you want the assistant to follow
+function isCreatorQuestion(text) {
+  const t = (text || "").toLowerCase();
+  return (
     t.includes("who created") ||
     t.includes("who made") ||
     t.includes("who built") ||
     t.includes("who developed") ||
-    t.includes("who designed") ||
-    t.includes("creator");
-  const hasTarget = t.includes("app") || t.includes("dietbite") || t.includes("you");
-  return hasWho && hasTarget;
+    t.includes("who is the creator") ||
+    t.includes("who created this app") ||
+    t.includes("who built this app")
+  );
 }
-
-app.get("/", (req, res) => res.status(200).send("OK"));
 
 app.post("/chat", async (req, res) => {
   const rid = crypto.randomUUID();
 
   try {
-    const body = req.body || {};
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({
+        reply: "Server misconfigured (missing OPENAI_API_KEY).",
+        rid,
+      });
+    }
 
-    // ✅ Accept BOTH formats:
-    // 1) { messages: [{role, content}, ...] }
-    // 2) { message: "..." }
-    let messages = null;
-
-    if (Array.isArray(body.messages) && body.messages.length > 0) {
-      messages = body.messages.map((m) => ({
-        role: m.role === "user" || m.role === "assistant" ? m.role : "user",
-        content: String(m.content ?? ""),
-      }));
-    } else if (typeof body.message === "string" && body.message.trim().length > 0) {
-      messages = [{ role: "user", content: body.message.trim() }];
-    } else {
+    const messages = normalizeMessages(req.body);
+    if (!messages) {
+      // Match your old error style so your app can display it
+      // If client sent messages incorrectly, we tell them clearly
       return res.status(400).json({
         reply:
-          "Missing or invalid input. Send either {message: string} or {messages: [{role, content}]}",
+          "Missing or invalid request body. Send either {\"message\":\"...\"} or {\"messages\":[{\"role\":\"user\",\"content\":\"...\"}]}",
         rid,
       });
     }
 
-    const lastText = messages[messages.length - 1]?.content ?? "";
+    const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content || "";
 
-    // ✅ Guaranteed creator response
-    if (isCreatorQuestion(lastText)) {
-      return res.json({ reply: "Kenneth Grant of Granted Solutions, LLC.", rid });
-    }
-
-    if (!client) {
-      return res.status(500).json({
-        reply: "Server is missing OPENAI_API_KEY.",
+    // If they ask who created the app, answer directly (no AI call needed)
+    if (isCreatorQuestion(lastUser)) {
+      return res.json({
+        reply: "Kenneth Grant of Granted Solutions, LLC.",
         rid,
       });
     }
+
+    const client = new OpenAI({ apiKey });
+
+    // System message to keep your app behavior consistent
+    const system = {
+      role: "system",
+      content:
+        "You are DietBite Pro, a helpful nutrition assistant. Give clear, practical nutrition guidance. " +
+        "If asked who created this app, say exactly: Kenneth Grant of Granted Solutions, LLC. " +
+        "Do not mention internal policies. Keep responses concise but helpful.",
+    };
+
+    // Build final messages array for OpenAI
+    const finalMessages = [system, ...messages];
 
     const completion = await client.chat.completions.create({
-      model: MODEL,
+      model: "gpt-4o-mini",
+      messages: finalMessages,
       temperature: 0.7,
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
     });
 
     const reply =
       completion?.choices?.[0]?.message?.content?.trim() ||
-      "Sorry — I couldn’t generate a response.";
+      "Sorry — I couldn't generate a response right now.";
 
     return res.json({ reply, rid });
   } catch (err) {
-    console.error("CHAT ERROR:", err);
-    return res.status(500).json({ reply: "Server error. Please try again.", rid });
+    console.error("Chat error:", err);
+
+    return res.status(500).json({
+      reply: "Server error. Please try again.",
+      rid,
+    });
   }
 });
 
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+// MUST use process.env.PORT and bind 0.0.0.0 for Render
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server listening on port ${PORT}`);
+});
