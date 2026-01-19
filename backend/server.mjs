@@ -1,114 +1,104 @@
 import express from "express";
-import crypto from "crypto";
 import cors from "cors";
-
-console.log("✅ LOADED backend/server.mjs");
+import "dotenv/config";
+import crypto from "crypto";
+import OpenAI from "openai";
 
 const app = express();
-
-/* -------------------- Middleware -------------------- */
-
-// CORS (allow mobile + web during dev)
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-// JSON parsing
+app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-// Request ID for tracing
-app.use((req, res, next) => {
-  req.rid = crypto.randomUUID();
-  res.setHeader("X-Request-Id", req.rid);
-  next();
-});
+const PORT = process.env.PORT || 3000;
 
-/* -------------------- Health & Meta -------------------- */
+const client = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
-// Root (Render also probes this sometimes)
-app.get("/", (req, res) => {
-  res.status(200).json({ ok: true, route: "/", rid: req.rid });
-});
+const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-// REQUIRED for Render health checks
-app.get("/health", (req, res) => {
-  res.status(200).json({ ok: true, status: "healthy", rid: req.rid });
-});
+const SYSTEM_PROMPT = `
+You are DietBite Pro, a helpful nutrition assistant.
 
-// Confirm deployed file/version
-app.get("/version", (req, res) => {
-  res.status(200).json({
-    ok: true,
-    file: "backend/server.mjs",
-    node: process.version,
-    port: process.env.PORT,
-    time: new Date().toISOString(),
-    rid: req.rid,
-  });
-});
+- Provide practical, actionable nutrition guidance.
+- Be concise and clear.
+- Ask at most one follow-up question when helpful.
+- Do not diagnose. Encourage consulting a licensed clinician for medical issues.
 
-// Debug helper
-app.get("/debug", (req, res) => {
-  res.status(200).json({
-    ok: true,
-    method: req.method,
-    path: req.originalUrl,
-    headersHost: req.headers.host,
-    rid: req.rid,
-  });
-});
+Hard rule:
+If the user asks who created the app / who created you / who made DietBite,
+answer exactly: "Kenneth Grant of Granted Solutions, LLC."
+`.trim();
 
-/* -------------------- Chat API -------------------- */
+function isCreatorQuestion(text = "") {
+  const t = String(text).toLowerCase();
+  const hasWho =
+    t.includes("who created") ||
+    t.includes("who made") ||
+    t.includes("who built") ||
+    t.includes("who developed") ||
+    t.includes("who designed") ||
+    t.includes("creator");
+  const hasTarget = t.includes("app") || t.includes("dietbite") || t.includes("you");
+  return hasWho && hasTarget;
+}
 
-app.post("/chat", (req, res) => {
-  const rid = req.rid;
+app.get("/", (req, res) => res.status(200).send("OK"));
+
+app.post("/chat", async (req, res) => {
+  const rid = crypto.randomUUID();
 
   try {
-    const { message } = req.body ?? {};
+    const body = req.body || {};
 
-    if (!message || typeof message !== "string") {
+    // ✅ Accept BOTH formats:
+    // 1) { messages: [{role, content}, ...] }
+    // 2) { message: "..." }
+    let messages = null;
+
+    if (Array.isArray(body.messages) && body.messages.length > 0) {
+      messages = body.messages.map((m) => ({
+        role: m.role === "user" || m.role === "assistant" ? m.role : "user",
+        content: String(m.content ?? ""),
+      }));
+    } else if (typeof body.message === "string" && body.message.trim().length > 0) {
+      messages = [{ role: "user", content: body.message.trim() }];
+    } else {
       return res.status(400).json({
-        reply: "Missing or invalid 'message' (must be a string).",
+        reply:
+          "Missing or invalid input. Send either {message: string} or {messages: [{role, content}]}",
         rid,
       });
     }
 
-    return res.status(200).json({
-      reply:
-        "A low-sodium diet limits sodium (salt) intake to help manage blood pressure and fluid balance. " +
-        "It emphasizes fresh foods, reading labels, and avoiding heavily processed foods.",
-      rid,
+    const lastText = messages[messages.length - 1]?.content ?? "";
+
+    // ✅ Guaranteed creator response
+    if (isCreatorQuestion(lastText)) {
+      return res.json({ reply: "Kenneth Grant of Granted Solutions, LLC.", rid });
+    }
+
+    if (!client) {
+      return res.status(500).json({
+        reply: "Server is missing OPENAI_API_KEY.",
+        rid,
+      });
+    }
+
+    const completion = await client.chat.completions.create({
+      model: MODEL,
+      temperature: 0.7,
+      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
     });
+
+    const reply =
+      completion?.choices?.[0]?.message?.content?.trim() ||
+      "Sorry — I couldn’t generate a response.";
+
+    return res.json({ reply, rid });
   } catch (err) {
-    console.error(`[chat] ERROR rid=${rid}`, err);
-    return res.status(500).json({
-      reply: "Server error. Please try again.",
-      rid,
-    });
+    console.error("CHAT ERROR:", err);
+    return res.status(500).json({ reply: "Server error. Please try again.", rid });
   }
 });
 
-/* -------------------- 404 Handler -------------------- */
-
-app.use((req, res) => {
-  console.log(`[404] rid=${req.rid} ${req.method} ${req.originalUrl}`);
-  res.status(404).json({
-    ok: false,
-    error: "Not Found",
-    path: req.originalUrl,
-    rid: req.rid,
-  });
-});
-
-/* -------------------- Start Server -------------------- */
-
-const PORT = Number(process.env.PORT) || 3000;
-const HOST = "0.0.0.0";
-
-app.listen(PORT, HOST, () => {
-  console.log(`✅ LISTENING on http://${HOST}:${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
