@@ -1,43 +1,35 @@
-export async function sendMessage(message: string) {
+export const API_BASE_URL = "https://dietbite-pro-mobile-1.onrender.com";
+
+export async function apiPost<T>(path: string, body: any): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000); // ✅ 60s
+  const t = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const res = await fetch(
-      "https://dietbite-pro-backend-new.onrender.com/api/chat",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
-        signal: controller.signal,
-      }
-    );
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
 
     const text = await res.text();
-
-    // Try to parse JSON even when server errors
-    let data: any;
+    let json: any = null;
     try {
-      data = JSON.parse(text);
+      json = text ? JSON.parse(text) : null;
     } catch {
-      data = { raw: text };
+      json = null;
     }
 
     if (!res.ok) {
-      throw new Error(
-        data?.error
-          ? `Server error: ${data.error}`
-          : `HTTP ${res.status}: ${text}`
-      );
+      const msg = json?.error || json?.reply || `Request failed: ${res.status}`;
+      throw new Error(msg);
     }
 
-    return data;
-  } catch (err: any) {
-    if (err?.name === "AbortError") {
-      throw new Error("Server is waking up. Try again in a moment.");
-    }
-    throw new Error(err?.message || "Network request failed");
+    return json as T;
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error("Request timed out");
+    throw new Error("Connection error");
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(t);
   }
 }

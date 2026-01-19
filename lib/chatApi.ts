@@ -1,43 +1,24 @@
-export async function sendMessage(message: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000); // ✅ 60s
+export type ChatMsg = { role: "user" | "assistant"; content: string };
 
-  try {
-    const res = await fetch(
-      "https://dietbite-pro-backend-new.onrender.com/api/chat",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
-        signal: controller.signal,
-      }
-    );
+export type ChatResponse = {
+  reply: string;
+  rid?: string;
+};
 
-    const text = await res.text();
+const API_BASE_URL = "https://dietbite-pro-mobile-1.onrender.com";
 
-    // Try to parse JSON even when server errors
-    let data: any;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { raw: text };
-    }
+export async function sendChat(messages: ChatMsg[]): Promise<ChatResponse> {
+  const res = await fetch(`${API_BASE_URL}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages }),
+  });
 
-    if (!res.ok) {
-      throw new Error(
-        data?.error
-          ? `Server error: ${data.error}`
-          : `HTTP ${res.status}: ${text}`
-      );
-    }
+  const data = await res.json().catch(() => null);
 
-    return data;
-  } catch (err: any) {
-    if (err?.name === "AbortError") {
-      throw new Error("Server is waking up. Try again in a moment.");
-    }
-    throw new Error(err?.message || "Network request failed");
-  } finally {
-    clearTimeout(timeout);
+  if (!res.ok) {
+    throw new Error(data?.reply || "Request failed");
   }
+
+  return data as ChatResponse;
 }

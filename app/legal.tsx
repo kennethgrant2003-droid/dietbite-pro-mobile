@@ -1,47 +1,57 @@
-import { View, Text, Pressable } from "react-native";
 import { useRouter } from "expo-router";
+import React from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function LegalScreen() {
   const router = useRouter();
 
+  // ✅ If there's no history, go back to Welcome
+  const goBackSafe = () => {
+    try {
+      router.back();
+    } catch {
+      router.replace("/");
+    }
+    // In some cases router.back() doesn't throw but still can't go back,
+    // so we provide a deterministic fallback button behavior:
+    setTimeout(() => router.replace("/"), 0);
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: "#000", padding: 20 }}>
-      <Text
-        style={{
-          color: "#4CFF4C",
-          fontSize: 28,
-          fontWeight: "bold",
-          marginBottom: 20,
-        }}
-      >
-        Legal Notice
-      </Text>
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Legal Notice</Text>
 
-      <Text
-        style={{
-          color: "#fff",
-          fontSize: 16,
-          lineHeight: 24,
-        }}
-      >
-        This app provides nutrition information for educational purposes only and
-        does not constitute medical advice. Always consult a qualified healthcare
-        professional before making changes to your diet, supplements, or
-        treatment plan.
-      </Text>
+        <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
+          <Text style={styles.text}>
+            This app provides nutrition information for educational purposes only and does not
+            constitute medical advice. Always consult a qualified healthcare professional before
+            making changes to your diet, supplements, or treatment plan.
+          </Text>
+        </ScrollView>
 
-      <Pressable
-        onPress={() => router.back()}
-        style={{
-          marginTop: "auto",
-          backgroundColor: "#4CFF4C",
-          padding: 16,
-          borderRadius: 12,
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ fontWeight: "bold", fontSize: 16 }}>Back</Text>
-      </Pressable>
-    </View>
+        <Pressable style={styles.backBtn} onPress={goBackSafe}>
+          <Text style={styles.backBtnText}>Back</Text>
+        </Pressable>
+      </View>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#000" },
+  container: { flex: 1, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 18 },
+  title: { color: "#78ff3d", fontSize: 34, fontWeight: "900", marginBottom: 14 },
+  body: { flex: 1 },
+  text: { color: "#fff", fontSize: 20, lineHeight: 28 },
+  backBtn: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "#78ff3d",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
+  },
+  backBtnText: { color: "#000", fontSize: 18, fontWeight: "900" },
+});
