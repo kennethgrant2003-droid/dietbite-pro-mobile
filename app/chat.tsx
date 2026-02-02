@@ -1,4 +1,5 @@
-import React, { useMemo, useRef, useState } from "react";
+// app/chat.tsx
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -6,173 +7,223 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { sendChat } from "../lib/chatApi";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Constants from "expo-constants";
 
-type Msg = {
+type Role = "user" | "assistant";
+
+type ChatMessage = {
   id: string;
-  role: "user" | "assistant";
+  role: Role;
   text: string;
 };
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error("Request timed out")), ms);
-    promise
-      .then((v) => {
-        clearTimeout(t);
-        resolve(v);
-      })
-      .catch((e) => {
-        clearTimeout(t);
-        reject(e);
-      });
-  });
+type ApiMessage = {
+  role: Role;
+  content: string;
+};
+
+const FADED_APPLE_SOURCE = require("../assets/apple-faded.png");
+
+// ✅ Robust extra loader (works in preview/production too)
+const EXTRA: any =
+  (Constants.expoConfig?.extra as any) ??
+  // @ts-ignore
+  (Constants.manifest?.extra as any) ??
+  // @ts-ignore
+  (Constants.manifest2?.extra as any) ??
+  {};
+
+// ✅ OPTION 2: ALWAYS USE PROD API (prevents local IP timeouts)
+const CHAT_API_URL: string = String(EXTRA.CHAT_API_URL_PROD || "").trim();
+
+class TimeoutError extends Error {
+  name = "TimeoutError";
+  constructor(message = "Request timed out") {
+    super(message);
+  }
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new TimeoutError();
+    throw e;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function sendChat(history: ApiMessage[]): Promise<string> {
+  if (!CHAT_API_URL) {
+    throw new Error(
+      "CHAT_API_URL_PROD is empty. Check app.json -> expo.extra.CHAT_API_URL_PROD."
+    );
+  }
+
+  const res = await fetchWithTimeout(
+    CHAT_API_URL,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: history }),
+    },
+    60000
+  );
+
+  const raw = await res.text();
+
+  let data: any = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    data = { raw };
+  }
+
+  if (!res.ok) {
+    const msg = data?.error || data?.message || data?.raw || `HTTP ${res.status}`;
+    throw new Error(`HTTP ${res.status}: ${msg}`);
+  }
+
+  const reply = data?.reply ?? data?.text ?? data?.message;
+  if (!reply) throw new Error("Server returned no 'reply' field.");
+  return String(reply);
 }
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<Msg>>(null);
+  const listRef = useRef<FlatList<ChatMessage>>(null);
 
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const [messages, setMessages] = useState<Msg[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      text: "What can DietBite help you with today?",
-    },
+  const [sending, setSending] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    { id: "welcome", role: "assistant", text: "What can DietBite help you with today?" },
   ]);
 
-  const canSend = useMemo(() => input.trim().length > 0 && !loading, [input, loading]);
+  const canSend = useMemo(() => input.trim().length > 0 && !sending, [input, sending]);
 
-  function scrollToBottom() {
-    requestAnimationFrame(() => {
-      listRef.current?.scrollToEnd({ animated: true });
-    });
-  }
+  const scrollToBottom = () => {
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
+  };
 
-  async function onSend() {
-    const text = input.trim();
-    if (!text || loading) return;
+  useEffect(() => {
+    console.log("[DietBite] Using PROD API:", CHAT_API_URL);
+  }, []);
 
-    const userMsg: Msg = { id: `u-${Date.now()}`, role: "user", text };
+  const onSend = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || sending) return;
 
-    // Optimistic UI update
-    setMessages((prev) => [...prev, userMsg]);
+    // 🔒 HARD attribution override — before any API call
+    const attributionTriggers =
+      /(who (made|created|built|developed)|who owns|who developed this|who created this app|who made this app)/i;
+
+    if (attributionTriggers.test(trimmed)) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `u-${Date.now()}`, role: "user", text: trimmed },
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          text: "DietBite Pro was created by Kenneth Grant of Granted Solutions, LLC.",
+        },
+      ]);
+      setInput("");
+      scrollToBottom();
+      return;
+    }
+
     setInput("");
-    setLoading(true);
+    setSending(true);
 
+    const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", text: trimmed };
+    setMessages((prev) => [...prev, userMsg]);
     scrollToBottom();
 
     try {
-      // ✅ Build chat history for the API (what your backend expects)
-      const historyForApi = [...messages, userMsg].map((m) => ({
+      const history: ApiMessage[] = [...messages, userMsg].map((m) => ({
         role: m.role,
         content: m.text,
       }));
 
-      // ✅ Prevent infinite "thinking"
-      const res = await withTimeout(sendChat(historyForApi), 15000);
-
-      const replyText = res?.reply?.trim() || "No response received.";
-
+      const reply = await sendChat(history);
       setMessages((prev) => [
         ...prev,
-        { id: `a-${Date.now()}`, role: "assistant", text: replyText },
+        { id: `a-${Date.now()}`, role: "assistant", text: reply },
       ]);
+      scrollToBottom();
     } catch (e: any) {
       const msg =
-        e?.message === "Request timed out"
+        e?.name === "TimeoutError"
           ? "Sorry — the server is taking too long. Please try again."
-          : "Connection error. Please try again.";
+          : `Sorry — something went wrong. ${String(e?.message ?? e)}`;
 
       setMessages((prev) => [
         ...prev,
-        { id: `err-${Date.now()}`, role: "assistant", text: msg },
+        { id: `e-${Date.now()}`, role: "assistant", text: msg },
       ]);
-    } finally {
-      setLoading(false);
       scrollToBottom();
+    } finally {
+      setSending(false);
     }
-  }
-
-  function renderItem({ item }: { item: Msg }) {
-    const isUser = item.role === "user";
-
-    return (
-      <View style={[styles.row, isUser ? styles.rowRight : styles.rowLeft]}>
-        <View style={[styles.bubble, isUser ? styles.userBubble : styles.botBubble]}>
-          <Text style={[styles.bubbleText, isUser ? styles.userText : styles.botText]}>
-            {item.text}
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  const composerBaseHeight = 64;
+  };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      {/* Background */}
-      <View style={styles.bg}>
-        <Image
-          source={require("../assets/apple-faded.png")}
-          style={styles.apple}
-          resizeMode="contain"
-        />
-        <View style={styles.dim} />
-      </View>
+    <SafeAreaView style={styles.safe}>
+      <Image source={FADED_APPLE_SOURCE} style={styles.bgApple} resizeMode="contain" />
 
-      {/* Keyboard fix */}
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
       >
         <FlatList
           ref={listRef}
           data={messages}
           keyExtractor={(m) => m.id}
-          renderItem={renderItem}
-          contentContainerStyle={[
-            styles.list,
-            {
-              paddingTop: 14,
-              paddingBottom: composerBaseHeight + insets.bottom + 18,
-            },
-          ]}
-          onContentSizeChange={scrollToBottom}
+          renderItem={({ item }) => {
+            const isUser = item.role === "user";
+            return (
+              <View style={[styles.row, isUser ? styles.rowRight : styles.rowLeft]}>
+                <View style={[styles.bubble, isUser ? styles.userBubble : styles.botBubble]}>
+                  <Text style={{ color: isUser ? "#000" : "#fff" }}>{item.text}</Text>
+                </View>
+              </View>
+            );
+          }}
+          contentContainerStyle={{
+            paddingBottom: 120 + insets.bottom,
+            paddingHorizontal: 14,
+            paddingTop: 10,
+          }}
         />
 
-        {/* Composer */}
-        <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-          <View style={styles.inputWrap}>
-            <TextInput
-              value={input}
-              onChangeText={setInput}
-              placeholder="Type a message..."
-              placeholderTextColor="#7a7a7a"
-              style={styles.input}
-              editable={!loading}
-              returnKeyType="send"
-              onSubmitEditing={onSend}
-            />
-          </View>
-
+        <View style={[styles.inputRow, { paddingBottom: Math.max(10, insets.bottom) }]}>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder="Type a message..."
+            placeholderTextColor="#888"
+            style={styles.input}
+            editable={!sending}
+            onSubmitEditing={onSend}
+            returnKeyType="send"
+          />
           <Pressable
-            style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
             onPress={onSend}
             disabled={!canSend}
+            style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
           >
-            {loading ? <ActivityIndicator /> : <Text style={styles.sendText}>Send</Text>}
+            {sending ? <ActivityIndicator /> : <Text style={styles.sendText}>Send</Text>}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -183,74 +234,56 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#000" },
   container: { flex: 1 },
-
-  bg: { ...StyleSheet.absoluteFillObject },
-  apple: {
+  bgApple: {
     position: "absolute",
-    width: "92%",
-    height: "92%",
     alignSelf: "center",
-    top: "10%",
-    opacity: 0.40, // ✅ brighter apple
+    width: 340,
+    height: 340,
+    opacity: 0.22,
+    top: "30%",
   },
-  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.52)" },
 
-  list: { paddingHorizontal: 14 },
-
-  row: { flexDirection: "row", marginVertical: 6 },
+  row: { marginVertical: 6, flexDirection: "row" },
   rowLeft: { justifyContent: "flex-start" },
   rowRight: { justifyContent: "flex-end" },
 
   bubble: {
-    maxWidth: "85%",
-    paddingHorizontal: 12,
+    maxWidth: "82%",
+    borderRadius: 18,
     paddingVertical: 10,
-    borderRadius: 16,
-  },
-  botBubble: {
-    backgroundColor: "rgba(255,255,255,0.90)",
-    borderTopLeftRadius: 6,
-  },
-  userBubble: {
-    backgroundColor: "#78ff3d",
-    borderTopRightRadius: 6,
-  },
-
-  bubbleText: { fontSize: 16, lineHeight: 22 },
-  botText: { color: "#111" },
-  userText: { color: "#000" },
-
-  composer: {
-    flexDirection: "row",
-    paddingHorizontal: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.10)",
-    backgroundColor: "rgba(0,0,0,0.90)",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  inputWrap: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-    borderRadius: 14,
     paddingHorizontal: 12,
-    height: 44,
-    justifyContent: "center",
-    backgroundColor: "rgba(10,10,10,0.6)",
   },
-  input: { fontSize: 16, color: "#fff" },
+  botBubble: { backgroundColor: "#2b2b2b" },
+  userBubble: { backgroundColor: "#30d158" },
 
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#222",
+    backgroundColor: "#000",
+  },
+  input: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#111",
+    color: "#fff",
+  },
   sendBtn: {
-    width: 84,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "#78ff3d",
+    marginLeft: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 22,
+    backgroundColor: "#30d158",
     alignItems: "center",
     justifyContent: "center",
+    minWidth: 82,
   },
   sendBtnDisabled: { opacity: 0.5 },
-  sendText: { color: "#000", fontSize: 16, fontWeight: "800" },
+  sendText: { color: "#000", fontWeight: "700" },
 });

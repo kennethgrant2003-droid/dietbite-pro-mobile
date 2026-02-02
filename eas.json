@@ -1,8 +1,4 @@
 {
-  "cli": {
-    "version": ">= 16.28.0",
-    "appVersionSource": "remote"
-  },
   "build": {
     "development": {
       "developmentClient": true,
@@ -11,11 +7,25 @@
     "preview": {
       "distribution": "internal"
     },
-    "production": {
-      "autoIncrement": true
+    "production-apk": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production-aab": {
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
+    "ios-testflight": {
+      "ios": {
+        "simulator": false
+      }
+    },
+    "ios-production": {
+      "ios": {
+        "simulator": false
+      }
     }
-  },
-  "submit": {
-    "production": {}
   }
 }

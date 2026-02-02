@@ -2,7 +2,6 @@
   "name": "dietbite-backend",
   "version": "1.0.0",
   "type": "module",
-  "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs"
   },

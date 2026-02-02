@@ -1,24 +1,30 @@
-export type ChatMsg = { role: "user" | "assistant"; content: string };
+// lib/chatApi.ts
+import { API_BASE_URL } from "./apiBaseUrl";
 
-export type ChatResponse = {
-  reply: string;
-  rid?: string;
-};
+async function parseJson(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+}
 
-const API_BASE_URL = "https://dietbite-pro-mobile-1.onrender.com";
+export async function healthCheck() {
+  const res = await fetch(`${API_BASE_URL}/`);
+  const data = await parseJson(res);
+  if (!res.ok) throw new Error("Backend not reachable");
+  return data;
+}
 
-export async function sendChat(messages: ChatMsg[]): Promise<ChatResponse> {
+export async function sendChat(message: string) {
   const res = await fetch(`${API_BASE_URL}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ message }),
   });
 
-  const data = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    throw new Error(data?.reply || "Request failed");
-  }
-
-  return data as ChatResponse;
+  const data = await parseJson(res);
+  if (!res.ok) throw new Error("Chat failed");
+  return data;
 }

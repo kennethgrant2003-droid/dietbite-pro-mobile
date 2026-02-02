@@ -18,16 +18,27 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000000"
       },
-      "usesCleartextTraffic": true
+      "softwareKeyboardLayoutMode": "resize"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.grantedsolutions.dietbitepro",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "extra": {
       "creator": "DietBite Pro was created by Kenneth Grant of Granted Solutions, LLC.",
+      "CHAT_API_URL_DEV": "https://dietbite-pro-mobile-1.onrender.com/chat",
       "CHAT_API_URL_PROD": "https://dietbite-pro-mobile-1.onrender.com/chat",
-      "CHAT_API_URL_DEV": "http://10.0.0.160:3001/chat"
+      "router": {},
+      "eas": {
+        "projectId": "fa700e40-799f-4a27-80ac-5007e0cba938"
+      }
     },
-    "plugins": ["expo-router"]
+    "plugins": [
+      "expo-router",
+      "expo-asset"
+    ]
   }
 }
