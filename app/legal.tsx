@@ -29,6 +29,14 @@ export default function LegalScreen() {
             constitute medical advice. Always consult a qualified healthcare professional before
             making changes to your diet, supplements, or treatment plan.
           </Text>
+
+          {/* ✅ Added: Sources link for medical citations */}
+          <Pressable
+            style={styles.sourcesBtn}
+            onPress={() => router.push("/sources")}
+          >
+            <Text style={styles.sourcesBtnText}>Sources & Medical References</Text>
+          </Pressable>
         </ScrollView>
 
         <Pressable style={styles.backBtn} onPress={goBackSafe}>
@@ -45,6 +53,24 @@ const styles = StyleSheet.create({
   title: { color: "#78ff3d", fontSize: 34, fontWeight: "900", marginBottom: 14 },
   body: { flex: 1 },
   text: { color: "#fff", fontSize: 20, lineHeight: 28 },
+
+  // ✅ Added styles (non-breaking)
+  sourcesBtn: {
+    marginTop: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: "rgba(120,255,61,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(120,255,61,0.45)",
+  },
+  sourcesBtnText: {
+    color: "#78ff3d",
+    fontSize: 18,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+
   backBtn: {
     height: 56,
     borderRadius: 16,
