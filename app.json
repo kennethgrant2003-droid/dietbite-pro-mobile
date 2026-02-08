@@ -2,7 +2,7 @@
   "expo": {
     "name": "DietBite Pro",
     "slug": "dietbite-pro",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -23,6 +23,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.grantedsolutions.dietbitepro",
+      "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -36,9 +37,6 @@
         "projectId": "fa700e40-799f-4a27-80ac-5007e0cba938"
       }
     },
-    "plugins": [
-      "expo-router",
-      "expo-asset"
-    ]
+    "plugins": ["expo-router", "expo-asset"]
   }
 }
