@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 16.31.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -11,29 +11,11 @@
     "preview": {
       "distribution": "internal"
     },
-    "production-apk": {
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "production-aab": {
-      "android": {
-        "buildType": "app-bundle"
-      }
-    },
-    "ios-testflight": {
-      "ios": {
-        "simulator": false
-      }
-    },
     "ios-production": {
-      "ios": {
-        "simulator": false
-      }
+      "ios": { "simulator": false }
     }
   },
   "submit": {
-    "ios-production": {},
-    "ios-testflight": {}
+    "ios-production": {}
   }
 }
