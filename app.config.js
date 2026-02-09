@@ -4,7 +4,7 @@ export default ({ config }) => ({
 
   name: "DietBite Pro",
   slug: "dietbite-pro",
-  version: "1.0.0",
+  version: "1.0.1",
 
   // ✅ Required for expo-router / Linking in production builds
   scheme: "dietbitepro",
@@ -36,7 +36,7 @@ export default ({ config }) => ({
     bundleIdentifier: "com.grantedsolutions.dietbitepro",
 
     // ✅ MUST bump this every submission
-    buildNumber: "4",
+    buildNumber: "10",
 
     infoPlist: {
       ...(config.ios?.infoPlist || {}),
