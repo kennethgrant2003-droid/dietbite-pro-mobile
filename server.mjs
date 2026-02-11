@@ -30,6 +30,23 @@ const express = require("express");
 
 const app = express();
 
+/* CITATIONS_JSON_MIDDLEWARE */
+app.use((req, res, next) => {
+  if (req.path === "/chat") {
+    const _json = res.json.bind(res);
+    res.json = (body) => {
+      try {
+        if (body && typeof body.reply === "string") {
+          body.reply = withCitations(body.reply);
+        }
+      } catch {}
+      return _json(body);
+    };
+  }
+  next();
+});
+/* /CITATIONS_JSON_MIDDLEWARE */
+
 /* -----------------------------
  * Basic middleware
  * ----------------------------- */
@@ -58,7 +75,11 @@ app.get("/", (req, res) => {
 app.post("/chat", async (req, res) => {
   
   
-  const messages = normalizeMessages(req.body);
+  
+  console.log("[/chat] typeof req.body:", typeof req.body);
+  console.log("[/chat] isArray:", Array.isArray(req.body));
+  console.log("[/chat] body:", req.body);
+const messages = normalizeMessages(req.body);
   if (!messages) return res.status(400).json({ error: "Missing or invalid input. Provide 'messages' array OR 'message' string." });
 // Accept both payload formats:
   // A) { messages: [{role, content}, ...] }
@@ -116,6 +137,10 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`âœ… Server running on port ${PORT}`);
 });
+
+
+
+
 
 
 
