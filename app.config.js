@@ -32,11 +32,11 @@ export default ({ config }) => ({
 
   ios: {
     ...(config.ios || {}),
-    supportsTablet: true,
+    supportsTablet: false,
     bundleIdentifier: "com.grantedsolutions.dietbitepro",
 
     // âœ… MUST bump this every submission
-    buildNumber: "12",
+    buildNumber: "14",
 
     infoPlist: {
       ...(config.ios?.infoPlist || {}),
@@ -61,5 +61,8 @@ export default ({ config }) => ({
 
   plugins: ["expo-router", "expo-asset"],
 });
+
+
+
 
 
