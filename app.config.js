@@ -1,4 +1,4 @@
-// app.config.js
+﻿// app.config.js
 export default ({ config }) => ({
   ...config,
 
@@ -6,7 +6,7 @@ export default ({ config }) => ({
   slug: "dietbite-pro",
   version: "1.0.1",
 
-  // ✅ Required for expo-router / Linking in production builds
+  // âœ… Required for expo-router / Linking in production builds
   scheme: "dietbitepro",
 
   orientation: "portrait",
@@ -35,8 +35,8 @@ export default ({ config }) => ({
     supportsTablet: true,
     bundleIdentifier: "com.grantedsolutions.dietbitepro",
 
-    // ✅ MUST bump this every submission
-    buildNumber: "10",
+    // âœ… MUST bump this every submission
+    buildNumber: "12",
 
     infoPlist: {
       ...(config.ios?.infoPlist || {}),
@@ -61,3 +61,5 @@ export default ({ config }) => ({
 
   plugins: ["expo-router", "expo-asset"],
 });
+
+
