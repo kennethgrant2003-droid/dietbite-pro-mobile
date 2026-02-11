@@ -34,19 +34,38 @@ const app = express();
 app.use((req, res, next) => {
   if (req.path === "/chat") {
     const _json = res.json.bind(res);
+    const _send = res.send.bind(res);
+
     res.json = (body) => {
       try {
-        if (body && typeof body.reply === "string") {
-          body.reply = withCitations(body.reply);
-        }
+        if (body && typeof body.reply === "string") body.reply = withCitations(body.reply);
       } catch {}
       return _json(body);
+    };
+
+    res.send = (body) => {
+      try {
+        // If they send an object, handle directly
+        if (body && typeof body === "object" && typeof body.reply === "string") {
+          body.reply = withCitations(body.reply);
+          return _send(body);
+        }
+
+        // If they send a JSON string, parse -> append -> re-stringify
+        if (typeof body === "string" && body.trim().startsWith("{")) {
+          const obj = JSON.parse(body);
+          if (obj && typeof obj.reply === "string") {
+            obj.reply = withCitations(obj.reply);
+            return _send(JSON.stringify(obj));
+          }
+        }
+      } catch {}
+      return _send(body);
     };
   }
   next();
 });
 /* /CITATIONS_JSON_MIDDLEWARE */
-
 /* -----------------------------
  * Basic middleware
  * ----------------------------- */
@@ -108,7 +127,7 @@ try {
 
     // ðŸ”¹ TEMP RESPONSE (replace with your real chat logic)
     return res.json({
-      reply: `You said: ${userMessage}`,
+      reply: withCitations(`You said: ${userMessage)}`,
     });
 
   } catch (err) {
@@ -137,6 +156,8 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`âœ… Server running on port ${PORT}`);
 });
+
+
 
 
 
