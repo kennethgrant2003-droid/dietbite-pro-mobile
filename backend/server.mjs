@@ -2,6 +2,43 @@
 import cors from "cors";
 import OpenAI from "openai";
 
+
+const CITATION_FOOTER = `
+Sources:
+
+1. American Heart Association. "Sodium and Your Health."
+   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium
+
+2. Centers for Disease Control and Prevention. "About Sodium."
+   https://www.cdc.gov/salt/
+
+3. National Institutes of Health. "Sodium: Fact Sheet."
+   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/
+
+This information is for educational purposes only and does not replace professional medical advice.
+`.trim();
+
+function withCitations(text) {
+  const base = String(text || "").trim();
+  if (!base) return CITATION_FOOTER;
+  if (base.includes("Sources:") && base.includes("American Heart Association")) return base;
+  return `${base}\n\n${CITATION_FOOTER}`.trim();
+}
+
+function normalizeMessages(body) {
+  // Accept either {messages:[...]} OR {message:"", history:[...]}
+  if (body && Array.isArray(body.messages) && body.messages.length) return body.messages;
+
+  const userText = String(body?.message || "").trim();
+  if (!userText) return null;
+
+  const hist = Array.isArray(body?.history) ? body.history : [];
+  const safeHist = hist
+    .filter(m => m && typeof m.role === "string" && typeof m.content === "string")
+    .slice(-12);
+
+  return [...safeHist, { role: "user", content: userText }];
+}
 const app = express();
 
 app.use(cors());
@@ -18,10 +55,13 @@ app.get("/", (req, res) => {
 });
 
 app.post("/chat", async (req, res) => {
-  try {
+  
+  const messages = normalizeMessages(req.body);
+  if (!messages) return res.status(400).json({ error: "Missing or invalid input. Provide 'messages' array OR 'message' string." });
+try {
     const { messages } = req.body || {};
     if (!Array.isArray(messages)) {
-      return res.status(400).json({ error: "Missing or invalid 'messages' array." });
+      return res.status(400).json({ error: "Missing or invalid input. Provide 'messages' array OR 'message' string." });
     }
 
     const completion = await openai.chat.completions.create({
@@ -52,3 +92,5 @@ app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
   console.log(`Using model: ${MODEL}`);
 });
+
+
