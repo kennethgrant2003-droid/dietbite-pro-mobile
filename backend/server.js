@@ -1,3 +1,25 @@
+﻿const CITATION_FOOTER = `
+Sources:
+
+1. American Heart Association. "Sodium and Your Health."
+   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium
+
+2. Centers for Disease Control and Prevention. "About Sodium."
+   https://www.cdc.gov/salt/
+
+3. National Institutes of Health. "Sodium: Fact Sheet."
+   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/
+
+This information is for educational purposes only and does not replace professional medical advice.
+`.trim();
+
+function withCitations(text) {
+  const base = String(text || "").trim();
+  if (!base) return CITATION_FOOTER;
+  if (base.includes("Sources:") && base.includes("American Heart Association")) return base;
+  return `${base}\n\n${CITATION_FOOTER}`.trim();
+}
+
 /**
  * server.js
  * Fixes: HTTP 404 Cannot POST /chat
@@ -30,11 +52,26 @@ app.get("/", (req, res) => {
 });
 
 /* -----------------------------
- * ✅ CHAT ENDPOINT (THIS FIXES IT)
+ * âœ… CHAT ENDPOINT (THIS FIXES IT)
  * This MUST exist because your app POSTs to /chat
  * ----------------------------- */
 app.post("/chat", async (req, res) => {
-  try {
+  
+  
+  console.log("[/chat] keys:", req.body ? Object.keys(req.body) : null);
+  console.log("[/chat] body:", req.body);
+// Accept both payload formats:
+  // A) { messages: [{role, content}, ...] }
+  // B) { message: "text", history: [{role, content}, ...] }
+  if ((!req.body || !Array.isArray(req.body.messages)) && req.body && typeof req.body.message === "string") {
+    const userText = req.body.message.trim();
+    const history = Array.isArray(req.body.history) ? req.body.history : [];
+    const safeHistory = history
+      .filter(m => m && typeof m.role === "string" && typeof m.content === "string")
+      .slice(-12);
+    req.body.messages = [...safeHistory, { role: "user", content: userText }];
+  }
+try {
     console.log("CHAT BODY:", req.body);
 
     const userMessage =
@@ -48,7 +85,7 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-    // 🔹 TEMP RESPONSE (replace with your real chat logic)
+    // ðŸ”¹ TEMP RESPONSE (replace with your real chat logic)
     return res.json({
       reply: `You said: ${userMessage}`,
     });
@@ -77,5 +114,7 @@ app.use((req, res) => {
  * ----------------------------- */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`âœ… Server running on port ${PORT}`);
 });
+
+
