@@ -49,7 +49,7 @@ app.use((req, res, next) => {
 
     res.json = (body) => {
       try {
-        if (body && typeof body.reply === "string") body.reply = withCitations(body.reply);
+        if (body && typeof body.reply === "string") body.reply = withCitations(body.reply) + "\n\n[SERVER_MARKER_BACKEND_V1]";
       } catch {}
       return _json(body);
     };
@@ -57,13 +57,13 @@ app.use((req, res, next) => {
     res.send = (body) => {
       try {
         if (body && typeof body === "object" && typeof body.reply === "string") {
-          body.reply = withCitations(body.reply);
+          body.reply = withCitations(body.reply) + "\n\n[SERVER_MARKER_BACKEND_V1]";
           return _send(body);
         }
         if (typeof body === "string" && body.trim().startsWith("{")) {
           const obj = JSON.parse(body);
           if (obj && typeof obj.reply === "string") {
-            obj.reply = withCitations(obj.reply);
+            obj.reply = withCitations(obj.reply) + "\n\n[SERVER_MARKER_BACKEND_V1]";
             return _send(JSON.stringify(obj));
           }
         }
@@ -126,6 +126,7 @@ app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
   console.log(`Using model: ${MODEL}`);
 });
+
 
 
 
