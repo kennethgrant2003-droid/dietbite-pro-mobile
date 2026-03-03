@@ -41,6 +41,40 @@ function normalizeMessages(body) {
 }
 const app = express();
 
+/* CITATIONS_JSON_MIDDLEWARE */
+app.use((req, res, next) => {
+  if (req.path === "/chat") {
+    const _json = res.json.bind(res);
+    const _send = res.send.bind(res);
+
+    res.json = (body) => {
+      try {
+        if (body && typeof body.reply === "string") body.reply = withCitations(body.reply);
+      } catch {}
+      return _json(body);
+    };
+
+    res.send = (body) => {
+      try {
+        if (body && typeof body === "object" && typeof body.reply === "string") {
+          body.reply = withCitations(body.reply);
+          return _send(body);
+        }
+        if (typeof body === "string" && body.trim().startsWith("{")) {
+          const obj = JSON.parse(body);
+          if (obj && typeof obj.reply === "string") {
+            obj.reply = withCitations(obj.reply);
+            return _send(JSON.stringify(obj));
+          }
+        }
+      } catch {}
+      return _send(body);
+    };
+  }
+  next();
+});
+/* /CITATIONS_JSON_MIDDLEWARE */
+
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
@@ -92,5 +126,6 @@ app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
   console.log(`Using model: ${MODEL}`);
 });
+
 
 
