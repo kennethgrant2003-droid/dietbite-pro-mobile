@@ -1,4 +1,72 @@
-﻿import express from "express";
+﻿function stripMarkers(s) {
+  return String(s || "").replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim();
+}
+
+const CITATIONS = {
+  sodium: [
+    '1. American Heart Association. "Sodium and Your Health."\n   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium',
+    '2. Centers for Disease Control and Prevention. "About Sodium."\n   https://www.cdc.gov/salt/',
+    '3. National Institutes of Health. "Sodium: Fact Sheet."\n   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/'
+  ],
+  fiber: [
+    '1. Harvard T.H. Chan School of Public Health. "Fiber."\n   https://www.hsph.harvard.edu/nutritionsource/carbohydrates/fiber/',
+    '2. Mayo Clinic. "Dietary fiber: Essential for a healthy diet."\n   https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/fiber/art-20043983',
+    '3. USDA Dietary Guidelines for Americans.\n   https://www.dietaryguidelines.gov/'
+  ],
+  diabetes: [
+    '1. American Diabetes Association. "Nutrition."\n   https://diabetes.org/food-nutrition',
+    '2. CDC. "Diabetes: Managing Diabetes."\n   https://www.cdc.gov/diabetes/managing/',
+    '3. NIH MedlinePlus. "Diabetes Diet."\n   https://medlineplus.gov/diabetesdiet.html'
+  ],
+  cholesterol: [
+    '1. American Heart Association. "Cholesterol."\n   https://www.heart.org/en/health-topics/cholesterol',
+    '2. NIH MedlinePlus. "Cholesterol."\n   https://medlineplus.gov/cholesterol.html',
+    '3. CDC. "High Cholesterol."\n   https://www.cdc.gov/cholesterol/'
+  ],
+  protein: [
+    '1. Harvard T.H. Chan School of Public Health. "Protein."\n   https://www.hsph.harvard.edu/nutritionsource/what-should-you-eat/protein/',
+    '2. USDA MyPlate. "Protein Foods."\n   https://www.myplate.gov/eat-healthy/protein-foods',
+    '3. NIH MedlinePlus. "Diet and nutrition."\n   https://medlineplus.gov/dietandnutrition.html'
+  ],
+  hydration: [
+    '1. CDC. "Water and Healthier Drinks."\n   https://www.cdc.gov/healthyweight/healthy_eating/water-and-healthier-drinks.html',
+    '2. Mayo Clinic. "Water: How much should you drink every day?"\n   https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/water/art-20044256',
+    '3. NIH MedlinePlus. "Dehydration."\n   https://medlineplus.gov/dehydration.html'
+  ],
+  general: [
+    '1. USDA Dietary Guidelines for Americans.\n   https://www.dietaryguidelines.gov/',
+    '2. USDA MyPlate.\n   https://www.myplate.gov/',
+    '3. NIH MedlinePlus. "Diet and nutrition."\n   https://medlineplus.gov/dietandnutrition.html'
+  ]
+};
+
+function pickCitationKey(text) {
+  const t = String(text || "").toLowerCase();
+  if (/(sodium|salt|hypertension|blood pressure)/.test(t)) return "sodium";
+  if (/(fiber|constipation|gut|bowel|whole grain)/.test(t)) return "fiber";
+  if (/(diabetes|blood sugar|a1c|glucose)/.test(t)) return "diabetes";
+  if (/(cholesterol|ldl|hdl|triglycer)/.test(t)) return "cholesterol";
+  if (/(protein|muscle|whey|amino)/.test(t)) return "protein";
+  if (/(water|hydration|dehydration|electrolyte)/.test(t)) return "hydration";
+  return "general";
+}
+
+function withCitations(answerText, userText) {
+  const base = stripMarkers(answerText);
+  const key = pickCitationKey(userText + "\n" + base);
+  const list = CITATIONS[key] || CITATIONS.general;
+  const footer =
+`Sources:
+${list.join("\n\n")}
+
+This information is for educational purposes only and does not replace professional medical advice.`;
+
+  // If already contains "Sources:", don't double-append
+  if (/^Sources:\s*/m.test(base)) return base;
+  return (base + "\n\n" + footer).trim();
+}
+
+import express from "express";
 import cors from "cors";
 
 const app = express();
@@ -137,6 +205,10 @@ function normalizeMessages(body) {
 app.get("/health", (_req, res) => res.json({ ok: true, sig: "RUNTIME_SIGNATURE_BACKEND_MJS_20260303_170652" }));
 
 app.post("/chat", async (req, res) => {
+  const body = req.body;
+  const arr = Array.isArray(body?.messages) ? body.messages : [];
+  const lastUserText = (arr.slice().reverse().find(m => m?.role === "user" && typeof m?.content === "string")?.content) || (typeof body?.message === "string" ? body.message : "");
+
   const messages = normalizeMessages(req.body);
   if (!messages) {
     return res.status(400).json({
@@ -152,7 +224,7 @@ app.post("/chat", async (req, res) => {
     "Here’s a helpful, educational response based on your question. " +
     "For personal medical advice, consult a licensed clinician.";
 
-  return res.json({ reply: withCitations(replyText, userText) });
+  return res.json({ reply: withCitations(withCitations(replyText, lastUserText), userText) });
 });
 
 /* -----------------------------
@@ -162,4 +234,5 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
 
