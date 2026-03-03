@@ -18,7 +18,6 @@ Sources:
 This information is for educational purposes only and does not replace professional medical advice.
 `.trim();
 
-\n\n${CITATION_FOOTER}`.trim();
 }
 
 function normalizeMessages(body) {
@@ -120,14 +119,7 @@ function stripExistingSourcesBlock(text) {
   return s.slice(0, idx).replace(/\s+$/,"");
 }
 
-function withCitations(text, userQuestion) {
-  const base = stripExistingSourcesBlock(text).replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim();
-
-  const key = pickCitationKey(userQuestion || base);
-  const sources = CITATIONS[key] || CITATIONS.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
+\n\n${sources}\n\n${disclaimer}`.trim();
 }
 
 app.use((req, res, next) => {
@@ -245,14 +237,7 @@ function stripExistingSourcesBlock(text) {
   return s.slice(0, idx).replace(/\s+$/,"");
 }
 
-function withCitations(text, userQuestion) {
-  const base = stripExistingSourcesBlock(text).replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim();
-
-  const key = pickCitationKey(userQuestion || base);
-  const sources = CITATIONS[key] || CITATIONS.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
+\n\n${sources}\n\n${disclaimer}`.trim();
 }
 
 app.use(cors());
@@ -338,14 +323,7 @@ function stripExistingSourcesBlock(text) {
   return s.slice(0, idx).replace(/\s+$/,"");
 }
 
-function withCitations(text, userQuestion) {
-  const base = stripExistingSourcesBlock(text).replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim();
-
-  const key = pickCitationKey(userQuestion || base);
-  const sources = CITATIONS[key] || CITATIONS.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
+\n\n${sources}\n\n${disclaimer}`.trim();
 }
 
 app.use(express.json({ limit: "1mb" }));
@@ -438,14 +416,7 @@ function stripExistingSourcesBlock(text) {
   return s.slice(0, idx).replace(/\s+$/,"");
 }
 
-function withCitations(text, userQuestion) {
-  const base = stripExistingSourcesBlock(text).replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim();
-
-  const key = pickCitationKey(userQuestion || base);
-  const sources = CITATIONS[key] || CITATIONS.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
+\n\n${sources}\n\n${disclaimer}`.trim();
 }
 
 app.get("/", (req, res) => {
@@ -534,14 +505,7 @@ function stripExistingSourcesBlock(text) {
   return s.slice(0, idx).replace(/\s+$/,"");
 }
 
-function withCitations(text, userQuestion) {
-  const base = stripExistingSourcesBlock(text).replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim();
-
-  const key = pickCitationKey(userQuestion || base);
-  const sources = CITATIONS[key] || CITATIONS.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
+\n\n${sources}\n\n${disclaimer}`.trim();
 }
 
 app.post("/chat", async (req, res) => {
@@ -660,20 +624,14 @@ function stripExistingSourcesBlock(text) {
   return s.slice(0, idx).replace(/\s+$/,"");
 }
 
-function withCitations(text, userQuestion) {
-  const base = stripExistingSourcesBlock(text).replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim();
-
-  const key = pickCitationKey(userQuestion || base);
-  const sources = CITATIONS[key] || CITATIONS.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
+\n\n${sources}\n\n${disclaimer}`.trim();
 }
 
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
   console.log(`Using model: ${MODEL}`);
 });
+
 
 
 
