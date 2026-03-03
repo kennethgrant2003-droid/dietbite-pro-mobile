@@ -134,7 +134,7 @@ function normalizeMessages(body) {
 /* -----------------------------
  * Routes
  * ----------------------------- */
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/health", (_req, res) => res.json({ ok: true, sig: "RUNTIME_SIGNATURE_BACKEND_MJS_20260303_170652" }));
 
 app.post("/chat", async (req, res) => {
   const messages = normalizeMessages(req.body);
@@ -162,3 +162,4 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
