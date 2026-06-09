@@ -1,571 +1,167 @@
-﻿function stripMarkers(s) {
-  return String(s || "").replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim();
-}
-
-const CITATIONS = {
-  sodium: [
-    '1. American Heart Association. "Sodium and Your Health."\n   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium',
-    '2. Centers for Disease Control and Prevention. "About Sodium."\n   https://www.cdc.gov/salt/',
-    '3. National Institutes of Health. "Sodium: Fact Sheet."\n   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/'
-  ],
-  fiber: [
-    '1. Harvard T.H. Chan School of Public Health. "Fiber."\n   https://www.hsph.harvard.edu/nutritionsource/carbohydrates/fiber/',
-    '2. Mayo Clinic. "Dietary fiber: Essential for a healthy diet."\n   https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/fiber/art-20043983',
-    '3. USDA Dietary Guidelines for Americans.\n   https://www.dietaryguidelines.gov/'
-  ],
-  diabetes: [
-    '1. American Diabetes Association. "Nutrition."\n   https://diabetes.org/food-nutrition',
-    '2. CDC. "Diabetes: Managing Diabetes."\n   https://www.cdc.gov/diabetes/managing/',
-    '3. NIH MedlinePlus. "Diabetes Diet."\n   https://medlineplus.gov/diabetesdiet.html'
-  ],
-  cholesterol: [
-    '1. American Heart Association. "Cholesterol."\n   https://www.heart.org/en/health-topics/cholesterol',
-    '2. NIH MedlinePlus. "Cholesterol."\n   https://medlineplus.gov/cholesterol.html',
-    '3. CDC. "High Cholesterol."\n   https://www.cdc.gov/cholesterol/'
-  ],
-  protein: [
-    '1. Harvard T.H. Chan School of Public Health. "Protein."\n   https://www.hsph.harvard.edu/nutritionsource/what-should-you-eat/protein/',
-    '2. USDA MyPlate. "Protein Foods."\n   https://www.myplate.gov/eat-healthy/protein-foods',
-    '3. NIH MedlinePlus. "Diet and nutrition."\n   https://medlineplus.gov/dietandnutrition.html'
-  ],
-  hydration: [
-    '1. CDC. "Water and Healthier Drinks."\n   https://www.cdc.gov/healthyweight/healthy_eating/water-and-healthier-drinks.html',
-    '2. Mayo Clinic. "Water: How much should you drink every day?"\n   https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/water/art-20044256',
-    '3. NIH MedlinePlus. "Dehydration."\n   https://medlineplus.gov/dehydration.html'
-  ],
-  general: [
-    '1. USDA Dietary Guidelines for Americans.\n   https://www.dietaryguidelines.gov/',
-    '2. USDA MyPlate.\n   https://www.myplate.gov/',
-    '3. NIH MedlinePlus. "Diet and nutrition."\n   https://medlineplus.gov/dietandnutrition.html'
-  ]
-};
-
-function pickCitationKey(text) {
-  const t = String(text || "").toLowerCase();
-  if (/(sodium|salt|hypertension|blood pressure)/.test(t)) return "sodium";
-  if (/(fiber|constipation|gut|bowel|whole grain)/.test(t)) return "fiber";
-  if (/(diabetes|blood sugar|a1c|glucose)/.test(t)) return "diabetes";
-  if (/(cholesterol|ldl|hdl|triglycer)/.test(t)) return "cholesterol";
-  if (/(protein|muscle|whey|amino)/.test(t)) return "protein";
-  if (/(water|hydration|dehydration|electrolyte)/.test(t)) return "hydration";
-  return "general";
-}
-
-This information is for educational purposes only and does not replace professional medical advice.`;
-
-  // If already contains "Sources:", don't double-append
-  if (/^Sources:\s*/m.test(base)) return base;
-  return (base + "\n\n" + footer).trim();
-}
-
-import express from "express";
+﻿import express from "express";
 import cors from "cors";
+import OpenAI from "openai";
 
 const app = express();
-
-// Render/Cloud friendly
-const CITATIONS_BY_TOPIC = {
-  sodium: `Sources:
-
-1. American Heart Association. “Sodium and Your Health.”
-   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium
-
-2. Centers for Disease Control and Prevention. “About Sodium.”
-   https://www.cdc.gov/salt/
-
-3. National Institutes of Health. “Sodium: Fact Sheet.”
-   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/`,
-
-  fiber: `Sources:
-
-1. Harvard T.H. Chan School of Public Health. “Fiber.”
-   https://www.hsph.harvard.edu/nutritionsource/carbohydrates/fiber/
-
-2. Mayo Clinic. “Dietary fiber: Essential for a healthy diet.”
-   https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/fiber/art-20043983
-
-3. USDA Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/`,
-
-  diabetes: `Sources:
-
-1. American Diabetes Association. “Nutrition.”
-   https://diabetes.org/food-nutrition
-
-2. Centers for Disease Control and Prevention. “Diabetes.”
-   https://www.cdc.gov/diabetes/
-
-3. National Institute of Diabetes and Digestive and Kidney Diseases. “Diabetes Overview.”
-   https://www.niddk.nih.gov/health-information/diabetes`,
-
-  cholesterol: `Sources:
-
-1. American Heart Association. “Cholesterol.”
-   https://www.heart.org/en/health-topics/cholesterol
-
-2. Centers for Disease Control and Prevention. “Cholesterol.”
-   https://www.cdc.gov/cholesterol/
-
-3. National Heart, Lung, and Blood Institute. “High Blood Cholesterol.”
-   https://www.nhlbi.nih.gov/health-topics/high-blood-cholesterol`,
-
-  general: `Sources:
-
-1. USDA Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/
-
-2. USDA MyPlate.
-   https://www.myplate.gov/
-
-3. MedlinePlus. “Nutrition.”
-   https://medlineplus.gov/nutrition.html`
-};
-
-function pickTopic(questionText, answerText) {
-  const t = (String(questionText || "") + " " + String(answerText || "")).toLowerCase();
-  if (/(sodium|salt|hypertension|blood pressure)/.test(t)) return "sodium";
-  if (/(fiber|constipation|gut|bowel|whole grain)/.test(t)) return "fiber";
-  if (/(diabetes|blood sugar|glucose|a1c)/.test(t)) return "diabetes";
-  if (/(cholesterol|ldl|hdl|triglycer)/.test(t)) return "cholesterol";
-  return "general";
-}
-
-function stripSourcesAndMarkers(text) {
-  const s = String(text || "").replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "");
-  const idx = s.toLowerCase().indexOf("\nsources:");
-  const base = idx === -1 ? s : s.slice(0, idx);
-  return base.trim();
-}
-
-function withCitations(text, questionText) {
-  const base = stripSourcesAndMarkers(text);
-  const topic = pickTopic(questionText, base);
-  const sources = CITATIONS_BY_TOPIC[topic] || CITATIONS_BY_TOPIC.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-
-  // Prevent duplicates
-  if (/\nSources:\s*/i.test(text)) return `${base}\n\n${disclaimer}`.trim();
-
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
-}
-
 app.use(cors());
-const CITATIONS_BY_TOPIC = {
-  sodium: `Sources:
-
-1. American Heart Association. “Sodium and Your Health.”
-   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium
-
-2. Centers for Disease Control and Prevention. “About Sodium.”
-   https://www.cdc.gov/salt/
-
-3. National Institutes of Health. “Sodium: Fact Sheet.”
-   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/`,
-
-  fiber: `Sources:
-
-1. Harvard T.H. Chan School of Public Health. “Fiber.”
-   https://www.hsph.harvard.edu/nutritionsource/carbohydrates/fiber/
-
-2. Mayo Clinic. “Dietary fiber: Essential for a healthy diet.”
-   https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/fiber/art-20043983
-
-3. USDA Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/`,
-
-  diabetes: `Sources:
-
-1. American Diabetes Association. “Nutrition.”
-   https://diabetes.org/food-nutrition
-
-2. Centers for Disease Control and Prevention. “Diabetes.”
-   https://www.cdc.gov/diabetes/
-
-3. National Institute of Diabetes and Digestive and Kidney Diseases. “Diabetes Overview.”
-   https://www.niddk.nih.gov/health-information/diabetes`,
-
-  cholesterol: `Sources:
-
-1. American Heart Association. “Cholesterol.”
-   https://www.heart.org/en/health-topics/cholesterol
-
-2. Centers for Disease Control and Prevention. “Cholesterol.”
-   https://www.cdc.gov/cholesterol/
-
-3. National Heart, Lung, and Blood Institute. “High Blood Cholesterol.”
-   https://www.nhlbi.nih.gov/health-topics/high-blood-cholesterol`,
-
-  general: `Sources:
-
-1. USDA Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/
-
-2. USDA MyPlate.
-   https://www.myplate.gov/
-
-3. MedlinePlus. “Nutrition.”
-   https://medlineplus.gov/nutrition.html`
-};
-
-function pickTopic(questionText, answerText) {
-  const t = (String(questionText || "") + " " + String(answerText || "")).toLowerCase();
-  if (/(sodium|salt|hypertension|blood pressure)/.test(t)) return "sodium";
-  if (/(fiber|constipation|gut|bowel|whole grain)/.test(t)) return "fiber";
-  if (/(diabetes|blood sugar|glucose|a1c)/.test(t)) return "diabetes";
-  if (/(cholesterol|ldl|hdl|triglycer)/.test(t)) return "cholesterol";
-  return "general";
-}
-
-function stripSourcesAndMarkers(text) {
-  const s = String(text || "").replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "");
-  const idx = s.toLowerCase().indexOf("\nsources:");
-  const base = idx === -1 ? s : s.slice(0, idx);
-  return base.trim();
-}
-
-function withCitations(text, questionText) {
-  const base = stripSourcesAndMarkers(text);
-  const topic = pickTopic(questionText, base);
-  const sources = CITATIONS_BY_TOPIC[topic] || CITATIONS_BY_TOPIC.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-
-  // Prevent duplicates
-  if (/\nSources:\s*/i.test(text)) return `${base}\n\n${disclaimer}`.trim();
-
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
-}
-
 app.use(express.json({ limit: "1mb" }));
 
-/* -----------------------------
- * Citations (topic-based)
- * ----------------------------- */
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
 const CITATIONS = {
-  sodium: `Sources:
-1. American Heart Association. "Sodium and Your Health."
-   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium
+  sodium:
+    "Sources:\n\n" +
+    "1. American Heart Association. Sodium and Your Health.\n" +
+    "   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium\n\n" +
+    "2. Centers for Disease Control and Prevention. About Sodium.\n" +
+    "   https://www.cdc.gov/salt/\n\n" +
+    "3. National Institutes of Health. Sodium: Fact Sheet.\n" +
+    "   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/",
 
-2. Centers for Disease Control and Prevention. "About Sodium."
-   https://www.cdc.gov/salt/
+  fiber:
+    "Sources:\n\n" +
+    "1. Harvard T.H. Chan School of Public Health. Fiber.\n" +
+    "   https://www.hsph.harvard.edu/nutritionsource/carbohydrates/fiber/\n\n" +
+    "2. Mayo Clinic. Dietary fiber: Essential for a healthy diet.\n" +
+    "   https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/fiber/art-20043983\n\n" +
+    "3. USDA Dietary Guidelines for Americans.\n" +
+    "   https://www.dietaryguidelines.gov/",
 
-3. National Institutes of Health. "Sodium: Fact Sheet."
-   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/`,
+  diabetes:
+    "Sources:\n\n" +
+    "1. American Diabetes Association. Nutrition.\n" +
+    "   https://diabetes.org/food-nutrition\n\n" +
+    "2. Centers for Disease Control and Prevention. Diabetes.\n" +
+    "   https://www.cdc.gov/diabetes/\n\n" +
+    "3. National Institute of Diabetes and Digestive and Kidney Diseases. Diabetes Overview.\n" +
+    "   https://www.niddk.nih.gov/health-information/diabetes",
 
-  diabetes: `Sources:
-1. Centers for Disease Control and Prevention. "Diabetes."
-   https://www.cdc.gov/diabetes/
+  cholesterol:
+    "Sources:\n\n" +
+    "1. American Heart Association. Cholesterol.\n" +
+    "   https://www.heart.org/en/health-topics/cholesterol\n\n" +
+    "2. Centers for Disease Control and Prevention. Cholesterol.\n" +
+    "   https://www.cdc.gov/cholesterol/\n\n" +
+    "3. National Heart, Lung, and Blood Institute. High Blood Cholesterol.\n" +
+    "   https://www.nhlbi.nih.gov/health-topics/high-blood-cholesterol",
 
-2. National Institute of Diabetes and Digestive and Kidney Diseases. "Diabetes Overview."
-   https://www.niddk.nih.gov/health-information/diabetes
-
-3. American Diabetes Association. "Nutrition."
-   https://diabetes.org/food-nutrition`,
-
-  cholesterol: `Sources:
-1. National Heart, Lung, and Blood Institute. "High Blood Cholesterol."
-   https://www.nhlbi.nih.gov/health-topics/high-blood-cholesterol
-
-2. Centers for Disease Control and Prevention. "Cholesterol."
-   https://www.cdc.gov/cholesterol/
-
-3. American Heart Association. "Cholesterol."
-   https://www.heart.org/en/health-topics/cholesterol`,
-
-  weight: `Sources:
-1. Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/
-
-2. National Heart, Lung, and Blood Institute. "Aim for a Healthy Weight."
-   https://www.nhlbi.nih.gov/health/educational/lose_wt/
-
-3. USDA MyPlate.
-   https://www.myplate.gov/`,
-
-  foodSafety: `Sources:
-1. USDA. "Food Safety."
-   https://www.fsis.usda.gov/food-safety
-
-2. FDA. "Food Safety for Consumers."
-   https://www.fda.gov/food/consumers
-
-3. CDC. "Food Safety."
-   https://www.cdc.gov/foodsafety/`,
-
-  general: `Sources:
-1. Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/
-
-2. USDA MyPlate.
-   https://www.myplate.gov/
-
-3. MedlinePlus. "Nutrition."
-   https://medlineplus.gov/nutrition.html`
+  general:
+    "Sources:\n\n" +
+    "1. USDA Dietary Guidelines for Americans.\n" +
+    "   https://www.dietaryguidelines.gov/\n\n" +
+    "2. USDA MyPlate.\n" +
+    "   https://www.myplate.gov/\n\n" +
+    "3. MedlinePlus. Nutrition.\n" +
+    "   https://medlineplus.gov/nutrition.html",
 };
 
-function pickCitationKey(text) {
-  const t = String(text || "").toLowerCase();
-
-  if (t.match(/\bsodium\b|\bsalt\b|\bhypertension\b|\bblood pressure\b/)) return "sodium";
-  if (t.match(/\bdiabetes\b|\bblood sugar\b|\bglucose\b|\ba1c\b/)) return "diabetes";
-  if (t.match(/\bcholesterol\b|\bldl\b|\bhdl\b|\btriglyceride/)) return "cholesterol";
-  if (t.match(/\bweight\b|\bcalorie\b|\bcalories\b|\bweight loss\b|\bbmi\b/)) return "weight";
-  if (t.match(/\bfood poisoning\b|\braw\b|\bundercooked\b|\bcontamination\b|\brefrigerat/)) return "foodSafety";
-
+function pickTopic(question, answer) {
+  const t = (String(question || "") + " " + String(answer || "")).toLowerCase();
+  if (/(sodium|salt|hypertension|blood pressure)/.test(t)) return "sodium";
+  if (/(fiber|constipation|gut|bowel|whole grain|chia|oats)/.test(t)) return "fiber";
+  if (/(diabetes|blood sugar|glucose|a1c)/.test(t)) return "diabetes";
+  if (/(cholesterol|ldl|hdl|triglycer)/.test(t)) return "cholesterol";
   return "general";
 }
 
-function stripExistingSourcesBlock(text) {
-  const s = String(text || "").replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "");
+function cleanAnswer(text) {
+  let s = String(text || "");
+  s = s.replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "");
   const idx = s.toLowerCase().indexOf("\nsources:");
-  if (idx === -1) return s.trim();
-  return s.slice(0, idx).trim();
+  if (idx !== -1) s = s.slice(0, idx);
+  return s.trim();
 }
 
-\n\n${sources}\n\n${disclaimer}`.trim();
-}
+function withCitations(answer, question) {
+  const base = cleanAnswer(answer);
+  const topic = pickTopic(question, base);
+  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
 
-/* -----------------------------
- * Helpers to accept both payloads
- * A) { messages: [{role, content}, ...] }
- * B) { message: "text", history: [{role, content}, ...] }
- * ----------------------------- */
+  return (base + "\n\n" + CITATIONS[topic] + "\n\n" + disclaimer).trim();
+}
 function normalizeMessages(body) {
   if (!body) return null;
 
-  // If some proxy sends a string body, try parse
-  if (typeof body === "string") {
-    try { body = JSON.parse(body); } catch { return null; }
-  }
-
   if (Array.isArray(body.messages)) {
-    const msgs = body.messages
-      .filter(m => m && typeof m.role === "string" && typeof m.content === "string");
+    const msgs = body.messages.filter(
+      (m) => m && typeof m.role === "string" && typeof m.content === "string"
+    );
     return msgs.length ? msgs : null;
   }
 
   if (typeof body.message === "string") {
     const history = Array.isArray(body.history) ? body.history : [];
     const safeHistory = history
-      .filter(m => m && typeof m.role === "string" && typeof m.content === "string")
+      .filter((m) => m && typeof m.role === "string" && typeof m.content === "string")
       .slice(-12);
-    const userText = body.message.trim();
-    if (!userText) return null;
-    return [...safeHistory, { role: "user", content: userText }];
+
+    return safeHistory.concat([{ role: "user", content: body.message.trim() }]);
   }
 
   return null;
 }
 
-/* -----------------------------
- * Routes
- * ----------------------------- */
-const CITATIONS_BY_TOPIC = {
-  sodium: `Sources:
+app.get("/", (_req, res) => {
+  res.json({ ok: true, service: "dietbite-backend" });
+});
 
-1. American Heart Association. “Sodium and Your Health.”
-   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium
-
-2. Centers for Disease Control and Prevention. “About Sodium.”
-   https://www.cdc.gov/salt/
-
-3. National Institutes of Health. “Sodium: Fact Sheet.”
-   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/`,
-
-  fiber: `Sources:
-
-1. Harvard T.H. Chan School of Public Health. “Fiber.”
-   https://www.hsph.harvard.edu/nutritionsource/carbohydrates/fiber/
-
-2. Mayo Clinic. “Dietary fiber: Essential for a healthy diet.”
-   https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/fiber/art-20043983
-
-3. USDA Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/`,
-
-  diabetes: `Sources:
-
-1. American Diabetes Association. “Nutrition.”
-   https://diabetes.org/food-nutrition
-
-2. Centers for Disease Control and Prevention. “Diabetes.”
-   https://www.cdc.gov/diabetes/
-
-3. National Institute of Diabetes and Digestive and Kidney Diseases. “Diabetes Overview.”
-   https://www.niddk.nih.gov/health-information/diabetes`,
-
-  cholesterol: `Sources:
-
-1. American Heart Association. “Cholesterol.”
-   https://www.heart.org/en/health-topics/cholesterol
-
-2. Centers for Disease Control and Prevention. “Cholesterol.”
-   https://www.cdc.gov/cholesterol/
-
-3. National Heart, Lung, and Blood Institute. “High Blood Cholesterol.”
-   https://www.nhlbi.nih.gov/health-topics/high-blood-cholesterol`,
-
-  general: `Sources:
-
-1. USDA Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/
-
-2. USDA MyPlate.
-   https://www.myplate.gov/
-
-3. MedlinePlus. “Nutrition.”
-   https://medlineplus.gov/nutrition.html`
-};
-
-function pickTopic(questionText, answerText) {
-  const t = (String(questionText || "") + " " + String(answerText || "")).toLowerCase();
-  if (/(sodium|salt|hypertension|blood pressure)/.test(t)) return "sodium";
-  if (/(fiber|constipation|gut|bowel|whole grain)/.test(t)) return "fiber";
-  if (/(diabetes|blood sugar|glucose|a1c)/.test(t)) return "diabetes";
-  if (/(cholesterol|ldl|hdl|triglycer)/.test(t)) return "cholesterol";
-  return "general";
-}
-
-function stripSourcesAndMarkers(text) {
-  const s = String(text || "").replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "");
-  const idx = s.toLowerCase().indexOf("\nsources:");
-  const base = idx === -1 ? s : s.slice(0, idx);
-  return base.trim();
-}
-
-function withCitations(text, questionText) {
-  const base = stripSourcesAndMarkers(text);
-  const topic = pickTopic(questionText, base);
-  const sources = CITATIONS_BY_TOPIC[topic] || CITATIONS_BY_TOPIC.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-
-  // Prevent duplicates
-  if (/\nSources:\s*/i.test(text)) return `${base}\n\n${disclaimer}`.trim();
-
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
-}
-
-app.get("/health", (_req, res) => res.json({ ok: true, sig: "RUNTIME_SIGNATURE_BACKEND_MJS_20260303_170652" }));
-
-const CITATIONS_BY_TOPIC = {
-  sodium: `Sources:
-
-1. American Heart Association. “Sodium and Your Health.”
-   https://www.heart.org/en/healthy-living/healthy-eating/eat-smart/sodium
-
-2. Centers for Disease Control and Prevention. “About Sodium.”
-   https://www.cdc.gov/salt/
-
-3. National Institutes of Health. “Sodium: Fact Sheet.”
-   https://ods.od.nih.gov/factsheets/Sodium-HealthProfessional/`,
-
-  fiber: `Sources:
-
-1. Harvard T.H. Chan School of Public Health. “Fiber.”
-   https://www.hsph.harvard.edu/nutritionsource/carbohydrates/fiber/
-
-2. Mayo Clinic. “Dietary fiber: Essential for a healthy diet.”
-   https://www.mayoclinic.org/healthy-lifestyle/nutrition-and-healthy-eating/in-depth/fiber/art-20043983
-
-3. USDA Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/`,
-
-  diabetes: `Sources:
-
-1. American Diabetes Association. “Nutrition.”
-   https://diabetes.org/food-nutrition
-
-2. Centers for Disease Control and Prevention. “Diabetes.”
-   https://www.cdc.gov/diabetes/
-
-3. National Institute of Diabetes and Digestive and Kidney Diseases. “Diabetes Overview.”
-   https://www.niddk.nih.gov/health-information/diabetes`,
-
-  cholesterol: `Sources:
-
-1. American Heart Association. “Cholesterol.”
-   https://www.heart.org/en/health-topics/cholesterol
-
-2. Centers for Disease Control and Prevention. “Cholesterol.”
-   https://www.cdc.gov/cholesterol/
-
-3. National Heart, Lung, and Blood Institute. “High Blood Cholesterol.”
-   https://www.nhlbi.nih.gov/health-topics/high-blood-cholesterol`,
-
-  general: `Sources:
-
-1. USDA Dietary Guidelines for Americans.
-   https://www.dietaryguidelines.gov/
-
-2. USDA MyPlate.
-   https://www.myplate.gov/
-
-3. MedlinePlus. “Nutrition.”
-   https://medlineplus.gov/nutrition.html`
-};
-
-function pickTopic(questionText, answerText) {
-  const t = (String(questionText || "") + " " + String(answerText || "")).toLowerCase();
-  if (/(sodium|salt|hypertension|blood pressure)/.test(t)) return "sodium";
-  if (/(fiber|constipation|gut|bowel|whole grain)/.test(t)) return "fiber";
-  if (/(diabetes|blood sugar|glucose|a1c)/.test(t)) return "diabetes";
-  if (/(cholesterol|ldl|hdl|triglycer)/.test(t)) return "cholesterol";
-  return "general";
-}
-
-function stripSourcesAndMarkers(text) {
-  const s = String(text || "").replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "");
-  const idx = s.toLowerCase().indexOf("\nsources:");
-  const base = idx === -1 ? s : s.slice(0, idx);
-  return base.trim();
-}
-
-function withCitations(text, questionText) {
-  const base = stripSourcesAndMarkers(text);
-  const topic = pickTopic(questionText, base);
-  const sources = CITATIONS_BY_TOPIC[topic] || CITATIONS_BY_TOPIC.general;
-
-  const disclaimer = "This information is for educational purposes only and does not replace professional medical advice.";
-
-  // Prevent duplicates
-  if (/\nSources:\s*/i.test(text)) return `${base}\n\n${disclaimer}`.trim();
-
-  return `${base}\n\n${sources}\n\n${disclaimer}`.trim();
-}
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, service: "dietbite-backend" });
+});
 
 app.post("/chat", async (req, res) => {
-  const body = req.body;
-  const arr = Array.isArray(body?.messages) ? body.messages : [];
-  const lastUserText = (arr.slice().reverse().find(m => m?.role === "user" && typeof m?.content === "string")?.content) || (typeof body?.message === "string" ? body.message : "");
+  try {
+    const messages = normalizeMessages(req.body);
 
-  const messages = normalizeMessages(req.body);
-  if (!messages) {
-    return res.status(400).json({
-      error: "Missing or invalid input. Provide 'messages' array OR 'message' string."
+    if (!messages) {
+      return res.status(400).json({
+        error: "Missing or invalid input. Provide 'messages' array OR 'message' string.",
+      });
+    }
+
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    const question = lastUser?.content || "";
+
+    let aiText = "";
+
+    if (!process.env.OPENAI_API_KEY) {
+      aiText =
+        "Here is educational nutrition guidance based on your question. For personal medical advice, consult a licensed healthcare professional.";
+    } else {
+      const completion = await client.chat.completions.create({
+        model: MODEL,
+        temperature: 0.4,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are DietBite Pro, an educational nutrition assistant. Do not diagnose, treat, or replace professional medical advice. Keep answers clear, practical, and safe.",
+          },
+          ...messages,
+        ],
+      });
+
+      aiText = completion.choices?.[0]?.message?.content || "";
+    }
+
+    return res.json({ reply: withCitations(aiText, question) });
+  } catch (err) {
+    console.error("CHAT ERROR:", err);
+    return res.status(500).json({
+      error: "Chat failed",
+      message: err.message,
     });
   }
-
-  const userText = messages[messages.length - 1]?.content || "";
-
-  // ✅ Replace this with your real AI call if you have one.
-  // For now, we return a helpful response + citations so Apple review passes.
-  const replyText =
-    "Here’s a helpful, educational response based on your question. " +
-    "For personal medical advice, consult a licensed clinician.";
-
-  return res.json({ reply: withCitations(withCitations(withCitations(replyText, lastUserText).replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim(), userText) , lastUserText)});
 });
 
-/* -----------------------------
- * Start server (Render uses PORT)
- * ----------------------------- */
 const PORT = process.env.PORT || 3001;
+
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server listening on port ${PORT}`);
+  console.log("Server listening on port " + PORT);
+  console.log("Using model: " + MODEL);
 });
-
-
-
 
