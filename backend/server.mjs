@@ -555,7 +555,7 @@ app.post("/chat", async (req, res) => {
     "Here’s a helpful, educational response based on your question. " +
     "For personal medical advice, consult a licensed clinician.";
 
-  return res.json({ reply: withCitations(withCitations(withCitations(replyText, lastUserText), userText) , lastUserText)});
+  return res.json({ reply: withCitations(withCitations(withCitations(replyText, lastUserText).replace(/\[SERVER_MARKER_BACKEND_V1\]/g, "").trim(), userText) , lastUserText)});
 });
 
 /* -----------------------------
@@ -565,6 +565,7 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
 
 
 
