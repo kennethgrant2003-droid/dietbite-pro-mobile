@@ -22,7 +22,7 @@ export default ({ config }) => ({
   android: {
     ...(config.android || {}),
     package: "com.grantedsolutions.dietbitepro",
-    versionCode: 4,
+    versionCode: 5,
     softwareKeyboardLayoutMode: "resize",
     adaptiveIcon: {
       foregroundImage: "./assets/icon.png",
@@ -61,6 +61,7 @@ export default ({ config }) => ({
 
   plugins: ["expo-router", "expo-asset"],
 });
+
 
 
 
