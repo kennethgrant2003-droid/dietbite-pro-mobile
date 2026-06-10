@@ -137,7 +137,7 @@ export default function ChatScreen() {
 
       Alert.alert(
         "AI Disclosure",
-        "DietBite Pro uses an artificial intelligence service to generate nutrition and wellness responses.\n\nInformation you enter in chat may be transmitted to our third-party AI provider for processing.\n\nPlease do not enter sensitive personal information, medical records, financial information, or other confidential information.\n\nBy continuing, you consent to the use of this AI service.",
+        "DietBite Pro uses artificial intelligence (AI) technology provided by OpenAI to generate nutrition and wellness responses.\n\nWhen you use the chat feature, information you enter, including chat messages and questions, may be transmitted to OpenAI for AI processing and to Render for hosting and infrastructure services necessary to operate the application.\n\nPlease do not enter sensitive personal information, medical records, financial information, passwords, government identification numbers, or other confidential information.\n\nDietBite Pro provides educational nutrition and wellness information only and does not provide medical diagnosis, treatment, or professional medical advice.\n\nBy selecting "I Agree" and continuing to use the chat feature, you consent to the transmission and processing of your chat information as described above and in our Privacy Policy.",
         [
           {
             text: "Cancel",
@@ -147,7 +147,7 @@ export default function ChatScreen() {
             },
           },
           {
-            text: "Continue",
+            text: "I Agree",
             onPress: async () => {
               await AsyncStorage.setItem("dietbite_ai_consent_v1", "true");
               setAiConsentAccepted(true);
@@ -373,3 +373,4 @@ const styles = StyleSheet.create({
   sendBtnDisabled: { opacity: 0.5 },
   sendText: { color: "#000", fontWeight: "700" },
 });
+
