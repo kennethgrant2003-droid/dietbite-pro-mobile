@@ -128,7 +128,7 @@ export default function ChatScreen() {
 
   async function checkAIConsent() {
     try {
-      const accepted = await AsyncStorage.getItem("dietbite_ai_consent_v1");
+      const accepted = await AsyncStorage.getItem("dietbite_ai_consent_v2");
 
       if (accepted === "true") {
         setAiConsentAccepted(true);
@@ -149,7 +149,7 @@ export default function ChatScreen() {
           {
             text: "I Agree",
             onPress: async () => {
-              await AsyncStorage.setItem("dietbite_ai_consent_v1", "true");
+              await AsyncStorage.setItem("dietbite_ai_consent_v2", "true");
               setAiConsentAccepted(true);
             },
           },
@@ -373,4 +373,5 @@ const styles = StyleSheet.create({
   sendBtnDisabled: { opacity: 0.5 },
   sendText: { color: "#000", fontWeight: "700" },
 });
+
 
