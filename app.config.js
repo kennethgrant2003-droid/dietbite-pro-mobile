@@ -36,7 +36,7 @@ export default ({ config }) => ({
     bundleIdentifier: "com.grantedsolutions.dietbitepro",
 
     // âœ… MUST bump this every submission
-    buildNumber: "16",
+    buildNumber: "17",
 
     infoPlist: {
       ...(config.ios?.infoPlist || {}),
@@ -61,6 +61,7 @@ export default ({ config }) => ({
 
   plugins: ["expo-router", "expo-asset"],
 });
+
 
 
 

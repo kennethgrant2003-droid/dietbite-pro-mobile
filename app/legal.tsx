@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+﻿import { useRouter } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function LegalScreen() {
   const router = useRouter();
 
-  // ✅ If there's no history, go back to Welcome
+  // âœ… If there's no history, go back to Welcome
   const goBackSafe = () => {
     try {
       router.back();
@@ -25,12 +25,22 @@ export default function LegalScreen() {
 
         <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
           <Text style={styles.text}>
-            This app provides nutrition information for educational purposes only and does not
-            constitute medical advice. Always consult a qualified healthcare professional before
-            making changes to your diet, supplements, or treatment plan.
+            This app provides nutrition information for educational purposes only and does not constitute medical advice. Always consult a qualified healthcare professional before making changes to your diet, supplements, or treatment plan.
+
+AI Disclosure and Consent
+
+DietBite Pro uses artificial intelligence (AI) technology provided by OpenAI to generate nutrition and wellness responses.
+
+When you use the chat feature, information you enter, including chat messages and questions, may be transmitted to OpenAI for AI processing and to Render for backend hosting and infrastructure services necessary to operate the application.
+
+Please do not enter sensitive personal information, medical records, financial information, passwords, government identification numbers, or other confidential information.
+
+DietBite Pro provides educational nutrition and wellness information only and does not provide medical diagnosis, treatment, or professional medical advice.
+
+By continuing to use the chat feature, you consent to the transmission and processing of your chat information as described above and in our Privacy Policy.
           </Text>
 
-          {/* ✅ Added: Sources link for medical citations */}
+          {/* âœ… Added: Sources link for medical citations */}
           <Pressable
             style={styles.sourcesBtn}
             onPress={() => router.push("/sources")}
@@ -54,7 +64,7 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   text: { color: "#fff", fontSize: 20, lineHeight: 28 },
 
-  // ✅ Added styles (non-breaking)
+  // âœ… Added styles (non-breaking)
   sourcesBtn: {
     marginTop: 18,
     paddingVertical: 14,
@@ -81,3 +91,4 @@ const styles = StyleSheet.create({
   },
   backBtnText: { color: "#000", fontSize: 18, fontWeight: "900" },
 });
+
