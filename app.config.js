@@ -22,7 +22,7 @@ export default ({ config }) => ({
   android: {
     ...(config.android || {}),
     package: "com.grantedsolutions.dietbitepro",
-    versionCode: 5,
+    versionCode: 6,
     softwareKeyboardLayoutMode: "resize",
     adaptiveIcon: {
       foregroundImage: "./assets/icon.png",
@@ -36,7 +36,7 @@ export default ({ config }) => ({
     bundleIdentifier: "com.grantedsolutions.dietbitepro",
 
     // âœ… MUST bump this every submission
-    buildNumber: "15",
+    buildNumber: "16",
 
     infoPlist: {
       ...(config.ios?.infoPlist || {}),
@@ -61,6 +61,7 @@ export default ({ config }) => ({
 
   plugins: ["expo-router", "expo-asset"],
 });
+
 
 
 
