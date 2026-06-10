@@ -1,7 +1,8 @@
-// app/chat.tsx
+﻿// app/chat.tsx
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -15,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Constants from "expo-constants";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Role = "user" | "assistant";
 
@@ -105,11 +107,15 @@ export default function ChatScreen() {
 
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [aiConsentAccepted, setAiConsentAccepted] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: "welcome", role: "assistant", text: "What can DietBite help you with today?" },
   ]);
 
-  const canSend = useMemo(() => input.trim().length > 0 && !sending, [input, sending]);
+  const canSend = useMemo(
+    () => input.trim().length > 0 && !sending && aiConsentAccepted,
+    [input, sending, aiConsentAccepted]
+  );
 
   const scrollToBottom = () => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
@@ -117,9 +123,50 @@ export default function ChatScreen() {
 
   useEffect(() => {
     console.log("[DietBite] Using PROD API:", CHAT_API_URL);
+    checkAIConsent();
   }, []);
 
+  async function checkAIConsent() {
+    try {
+      const accepted = await AsyncStorage.getItem("dietbite_ai_consent_v1");
+
+      if (accepted === "true") {
+        setAiConsentAccepted(true);
+        return;
+      }
+
+      Alert.alert(
+        "AI Disclosure",
+        "DietBite Pro uses an artificial intelligence service to generate nutrition and wellness responses.\n\nInformation you enter in chat may be transmitted to our third-party AI provider for processing.\n\nPlease do not enter sensitive personal information, medical records, financial information, or other confidential information.\n\nBy continuing, you consent to the use of this AI service.",
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => {
+              setAiConsentAccepted(false);
+            },
+          },
+          {
+            text: "Continue",
+            onPress: async () => {
+              await AsyncStorage.setItem("dietbite_ai_consent_v1", "true");
+              setAiConsentAccepted(true);
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    } catch {
+      setAiConsentAccepted(false);
+    }
+  }
+
   const onSend = async () => {
+    if (!aiConsentAccepted) {
+      checkAIConsent();
+      return;
+    }
+
     const trimmed = input.trim();
     if (!trimmed || sending) return;
 
@@ -207,14 +254,27 @@ export default function ChatScreen() {
           }}
         />
 
+        {!aiConsentAccepted && (
+          <View style={styles.consentBanner}>
+            <Text style={styles.consentText}>
+              AI disclosure required before using chat.
+            </Text>
+            <Pressable style={styles.consentBtn} onPress={checkAIConsent}>
+              <Text style={styles.consentBtnText}>Review</Text>
+            </Pressable>
+          </View>
+        )}
+
         <View style={[styles.inputRow, { paddingBottom: Math.max(10, insets.bottom) }]}>
           <TextInput
             value={input}
             onChangeText={setInput}
-            placeholder="Type a message..."
+            placeholder={
+              aiConsentAccepted ? "Type a message..." : "Accept AI disclosure to chat"
+            }
             placeholderTextColor="#888"
             style={styles.input}
-            editable={!sending}
+            editable={!sending && aiConsentAccepted}
             onSubmitEditing={onSend}
             returnKeyType="send"
           />
@@ -255,6 +315,32 @@ const styles = StyleSheet.create({
   },
   botBubble: { backgroundColor: "#2b2b2b" },
   userBubble: { backgroundColor: "#30d158" },
+
+  consentBanner: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "#151515",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#30d158",
+  },
+  consentText: {
+    color: "#fff",
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  consentBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: "#30d158",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  consentBtnText: {
+    color: "#000",
+    fontWeight: "800",
+  },
 
   inputRow: {
     flexDirection: "row",
